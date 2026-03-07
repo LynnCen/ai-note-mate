@@ -2,29 +2,28 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Setup
 
+After cloning the repo:
+
 1. Copy the example env file and fill in your values:
    ```bash
    cp .env.local.example .env.local
    ```
-2. Edit `.env.local` and set:
-   - **Firebase**: Get config from [Firebase Console](https://console.firebase.google.com/) → Project settings → Your apps. Required for Firestore notes sync.
-   - **LLM**: Set `LLM_PROVIDER` (`openai`, `deepseek`, or `groq`) and the corresponding API key (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or `GROQ_API_KEY`) for AI features.
+2. Edit `.env.local`:
+   - **LLM (required for AI features):** Set `LLM_PROVIDER` to `openai`, `deepseek`, or `groq`, and set the matching API key:
+     - `OPENAI_API_KEY` (OpenAI)
+     - `DEEPSEEK_API_KEY` (DeepSeek)
+     - `GROQ_API_KEY` (Groq)
+   - **Firebase (optional):** For Firestore notes sync, add your Firebase web app config from [Firebase Console](https://console.firebase.google.com/) → Project settings → Your apps:
+     - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`
 
-## Getting Started
+   If no API key is configured, AI actions return a friendly error (503); the app does not crash.
 
-First, run the development server:
+3. Install dependencies and run the dev server:
+   ```bash
+   npm i && npm run dev
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
