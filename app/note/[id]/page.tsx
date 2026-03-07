@@ -185,12 +185,30 @@ export default function NoteDetailPage() {
   }
 
   const handleAiAccept = useCallback(
-    async (_acceptedContent: string) => {
-      // Task 12: replace note content and PUT; for Task 11 just close
+    async (acceptedContent: string) => {
+      if (!id || !aiMeta) return;
+      const newContent = aiMeta.hadSelection
+        ? aiMeta.contentAtClick.slice(0, aiMeta.selectionStart) +
+          acceptedContent +
+          aiMeta.contentAtClick.slice(aiMeta.selectionEnd)
+        : acceptedContent;
+      setContent(newContent);
       setAiStream(null);
       setAiMeta(null);
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/notes/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: newContent }),
+        });
+        const data = res.ok ? await res.json() : null;
+        if (data) updateNote(id, { content: data.content, updatedAt: data.updatedAt });
+      } finally {
+        setSaving(false);
+      }
     },
-    []
+    [id, aiMeta, updateNote]
   );
 
   const handleAiDiscard = useCallback(() => {
