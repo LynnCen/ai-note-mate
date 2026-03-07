@@ -38,8 +38,6 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## 可访问链接 / Demo
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+You can deploy this app to [Vercel](https://vercel.com): connect this repository, set the same environment variables in the Vercel project (e.g. `LLM_PROVIDER`, `OPENAI_API_KEY` or `DEEPSEEK_API_KEY`, and optionally all `NEXT_PUBLIC_FIREBASE_*` for Firestore), then deploy. A live link will be at `https://your-project.vercel.app` (replace with your project name), or see the Vercel dashboard for the exact URL after the first deploy.
