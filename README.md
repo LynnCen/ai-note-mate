@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Setup
+
+1. Copy the example env file and fill in your values:
+   ```bash
+   cp .env.local.example .env.local
+   ```
+2. Edit `.env.local` and set:
+   - **Firebase**: Get config from [Firebase Console](https://console.firebase.google.com/) → Project settings → Your apps. Required for Firestore notes sync.
+   - **LLM**: Set `LLM_PROVIDER` (`openai`, `deepseek`, or `groq`) and the corresponding API key (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or `GROQ_API_KEY`) for AI features.
+
 ## Getting Started
 
 First, run the development server:
