@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useNotesStore } from "@/stores/useNotesStore";
-import { NoteEditor } from "@/components/NoteEditor";
+import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
+import { AiResultModal } from "@/components/AiResultModal";
 import type { Note } from "@/types/note";
 
 const DEBOUNCE_MS = 500;
@@ -21,7 +22,15 @@ export default function NoteDetailPage() {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [aiStream, setAiStream] = useState<ReadableStream<Uint8Array> | null>(null);
+  const [aiMeta, setAiMeta] = useState<{
+    hadSelection: boolean;
+    selectionStart: number;
+    selectionEnd: number;
+    contentAtClick: string;
+  } | null>(null);
   const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorRef = useRef<NoteEditorHandle>(null);
 
   // Resolve note: from store or fetch by id
   useEffect(() => {
@@ -141,6 +150,54 @@ export default function NoteDetailPage() {
     }
   }
 
+  async function handleAiProcess() {
+    const range = editorRef.current?.getSelectionRange() ?? null;
+    const contentToSend = range
+      ? content.slice(range.start, range.end)
+      : content;
+    if (!contentToSend.trim()) return;
+    try {
+      const res = await fetch("/api/ai/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: contentToSend }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error ?? "AI 处理请求失败");
+        return;
+      }
+      const body = res.body;
+      if (!body) {
+        alert("未返回流");
+        return;
+      }
+      setAiMeta({
+        hadSelection: range !== null,
+        selectionStart: range?.start ?? 0,
+        selectionEnd: range?.end ?? content.length,
+        contentAtClick: content,
+      });
+      setAiStream(body);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "请求失败");
+    }
+  }
+
+  const handleAiAccept = useCallback(
+    async (_acceptedContent: string) => {
+      // Task 12: replace note content and PUT; for Task 11 just close
+      setAiStream(null);
+      setAiMeta(null);
+    },
+    []
+  );
+
+  const handleAiDiscard = useCallback(() => {
+    setAiStream(null);
+    setAiMeta(null);
+  }, []);
+
   if (!id) {
     return (
       <div className="min-h-screen bg-background text-foreground">
@@ -188,6 +245,13 @@ export default function NoteDetailPage() {
             ← 返回列表
           </Link>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAiProcess}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+            >
+              AI 处理
+            </button>
             {saving && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400">保存中…</span>
             )}
@@ -212,12 +276,18 @@ export default function NoteDetailPage() {
         />
 
         <NoteEditor
+          ref={editorRef}
           value={content}
           onChange={setContent}
           onSave={saveContent}
           placeholder="写点什么…"
         />
       </div>
+      <AiResultModal
+        stream={aiStream}
+        onAccept={handleAiAccept}
+        onDiscard={handleAiDiscard}
+      />
     </div>
   );
 }

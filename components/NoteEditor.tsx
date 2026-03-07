@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 
 const DEBOUNCE_MS = 500;
 
@@ -12,18 +12,37 @@ export interface NoteEditorProps {
   className?: string;
 }
 
+export interface NoteEditorHandle {
+  getSelectionRange: () => { start: number; end: number } | null;
+}
+
 /**
  * Controlled textarea for note content. Calls onSave on blur or after debounce (500ms).
+ * Exposes getSelectionRange() via ref for AI process selection.
  */
-export function NoteEditor({
-  value,
-  onChange,
-  onSave,
-  placeholder = "写点什么…",
-  className = "",
-}: NoteEditorProps) {
+export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor(
+  {
+    value,
+    onChange,
+    onSave,
+    placeholder = "写点什么…",
+    className = "",
+  },
+  ref
+) {
   const [localValue, setLocalValue] = useState(value);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    getSelectionRange() {
+      const el = textareaRef.current;
+      if (!el) return null;
+      const { selectionStart, selectionEnd } = el;
+      if (selectionStart === selectionEnd) return null;
+      return { start: selectionStart, end: selectionEnd };
+    },
+  }), []);
 
   // Sync local state when external value changes (e.g. after load)
   useEffect(() => {
@@ -65,6 +84,7 @@ export function NoteEditor({
 
   return (
     <textarea
+      ref={textareaRef}
       value={localValue}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -72,4 +92,4 @@ export function NoteEditor({
       className={`min-h-[200px] w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-foreground placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-500 ${className}`}
     />
   );
-}
+});
