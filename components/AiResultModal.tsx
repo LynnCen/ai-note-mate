@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { parseChunk } from "@/lib/stream-utils";
 
 /** Line height for virtual list (px). Must match rendered line height. */
 const VIRTUAL_LINE_HEIGHT_PX = 24;
@@ -13,25 +14,6 @@ export interface AiResultModalProps {
   stream: ReadableStream<Uint8Array> | null;
   onAccept: (content: string) => void;
   onDiscard: () => void;
-}
-
-/**
- * Parses SSE or plain text from chunk. API sends "data: {\"content\":\"...\"}\n\n".
- * Returns extracted text or the chunk as-is if not SSE.
- */
-function parseChunk(chunk: string): string {
-  const trimmed = chunk.trim();
-  if (trimmed.startsWith("data:")) {
-    const jsonStr = trimmed.slice(5).trim();
-    if (jsonStr === "[DONE]") return "";
-    try {
-      const data = JSON.parse(jsonStr) as { content?: string };
-      return typeof data.content === "string" ? data.content : "";
-    } catch {
-      return trimmed;
-    }
-  }
-  return trimmed;
 }
 
 export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProps) {
