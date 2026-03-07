@@ -12,6 +12,7 @@ interface NotesActions {
   updateNote: (id: string, updates: Partial<Pick<Note, "title" | "content" | "updatedAt">>) => void;
   deleteNote: (id: string) => void;
   setCurrentId: (id: string | null) => void;
+  fetchNotes: () => Promise<void>;
 }
 
 type NotesStore = NotesState & NotesActions;
@@ -45,4 +46,10 @@ export const useNotesStore = create<NotesStore>((set) => ({
     })),
 
   setCurrentId: (id) => set({ currentId: id }),
+
+  fetchNotes: async () => {
+    const res = await fetch("/api/notes");
+    const data = await res.json();
+    set({ notes: res.ok ? data : [] });
+  },
 }));
