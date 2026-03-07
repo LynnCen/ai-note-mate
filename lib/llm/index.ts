@@ -5,6 +5,7 @@
 
 import { getLLMProvider } from "@/lib/env";
 import { streamChatDeepSeek } from "./deepseek";
+import { streamChatGml } from "./gml";
 import { streamChatOpenAI } from "./openai";
 import type { ChatMessage, StreamOptions } from "./types";
 
@@ -30,6 +31,9 @@ export async function streamChat(
   }
   if (normalized === "deepseek") {
     return streamChatDeepSeek(messages, options);
+  }
+  if (normalized === "gml") {
+    return streamChatGml(messages, options);
   }
 
   if (normalized === "groq") {

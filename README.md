@@ -9,9 +9,10 @@ After cloning the repo:
    cp .env.local.example .env.local
    ```
 2. Edit `.env.local`:
-   - **LLM (required for AI features):** Set `LLM_PROVIDER` to `openai`, `deepseek`, or `groq`, and set the matching API key:
+   - **LLM (required for AI features):** Set `LLM_PROVIDER` to `openai`, `deepseek`, `gml`, or `groq`, and set the matching API key:
      - `OPENAI_API_KEY` (OpenAI)
      - `DEEPSEEK_API_KEY` (DeepSeek)
+     - `GML_API_KEY` (GML / 智谱 GLM)
      - `GROQ_API_KEY` (Groq)
    - **Firebase (optional):** For Firestore notes sync, add your Firebase web app config from [Firebase Console](https://console.firebase.google.com/) → Project settings → Your apps:
      - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`
@@ -40,4 +41,4 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## 可访问链接 / Demo
 
-You can deploy this app to [Vercel](https://vercel.com): connect this repository, set the same environment variables in the Vercel project (e.g. `LLM_PROVIDER`, `OPENAI_API_KEY` or `DEEPSEEK_API_KEY`, and optionally all `NEXT_PUBLIC_FIREBASE_*` for Firestore), then deploy. A live link will be at `https://your-project.vercel.app` (replace with your project name), or see the Vercel dashboard for the exact URL after the first deploy.
+You can deploy this app to [Vercel](https://vercel.com): connect this repository, set the same environment variables in the Vercel project (e.g. `LLM_PROVIDER`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GML_API_KEY`, or `GROQ_API_KEY`, and optionally all `NEXT_PUBLIC_FIREBASE_*` for Firestore), then deploy. A live link will be at `https://your-project.vercel.app` (replace with your project name), or see the Vercel dashboard for the exact URL after the first deploy.

@@ -4,6 +4,7 @@ import {
   getOpenAIKey,
   getDeepSeekKey,
   getGroqKey,
+  getGmlKey,
   getEnv,
 } from "@/lib/env";
 
@@ -15,6 +16,7 @@ describe("lib/env", () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.DEEPSEEK_API_KEY;
     delete process.env.GROQ_API_KEY;
+    delete process.env.GML_API_KEY;
   });
 
   afterEach(() => {
@@ -26,6 +28,7 @@ describe("lib/env", () => {
     expect(getOpenAIKey()).toBeUndefined();
     expect(getDeepSeekKey()).toBeUndefined();
     expect(getGroqKey()).toBeUndefined();
+    expect(getGmlKey()).toBeUndefined();
   });
 
   it("getEnv returns object with all getters", () => {
@@ -34,5 +37,6 @@ describe("lib/env", () => {
     expect(env).toHaveProperty("openaiKey");
     expect(env).toHaveProperty("deepSeekKey");
     expect(env).toHaveProperty("groqKey");
+    expect(env).toHaveProperty("gmlKey");
   });
 });
