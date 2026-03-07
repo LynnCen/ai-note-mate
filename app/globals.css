@@ -132,3 +132,54 @@ body {
     @apply font-sans;
   }
 }
+
+/* Phase 2: MDEditor 与 shadcn 统一（容器、工具栏、编辑区） */
+.note-editor-md .w-md-editor {
+  --md-editor-bg: var(--background);
+  --md-editor-border: var(--border);
+  --md-editor-text: var(--foreground);
+  min-height: 200px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--md-editor-border);
+  background-color: var(--md-editor-bg);
+}
+.note-editor-md .w-md-editor-toolbar {
+  background-color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 2px 4px;
+}
+.note-editor-md .w-md-editor-toolbar button,
+.note-editor-md .w-md-editor-toolbar li button {
+  color: var(--foreground);
+  border-radius: var(--radius-sm);
+}
+.note-editor-md .w-md-editor-toolbar button:hover,
+.note-editor-md .w-md-editor-toolbar li button:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+.note-editor-md .w-md-editor-content {
+  background-color: var(--background);
+}
+.note-editor-md .w-md-editor-area,
+.note-editor-md .w-md-editor-input {
+  color: var(--foreground);
+  font-family: inherit;
+  line-height: 1.6;
+  padding: 12px;
+}
+.note-editor-md[data-color-mode="dark"] .w-md-editor {
+  --md-editor-bg: var(--background);
+  --md-editor-border: var(--border);
+  --md-editor-text: var(--foreground);
+}
+.note-editor-md[data-color-mode="dark"] .w-md-editor-toolbar {
+  background-color: var(--muted);
+  border-color: var(--border);
+}
+.note-editor-md[data-color-mode="dark"] .w-md-editor-area,
+.note-editor-md[data-color-mode="dark"] .w-md-editor-input {
+  color: var(--foreground);
+  background-color: var(--background);
+}

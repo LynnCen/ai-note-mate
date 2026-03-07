@@ -1,14 +1,24 @@
 /**
  * POST /api/ai/stream — AI stream proxy. Uses server-side LLM key; streams
- * polished/expanded text via SSE. Body: { content: string }.
+ * text via SSE. Body: { content: string, action?: "polish"|"rewrite"|"summarize"|"expand"|"translate" }.
  */
 
 import { getGmlKey, getLLMProvider, getOpenAIKey, getDeepSeekKey } from "@/lib/env";
 import { streamChat } from "@/lib/llm";
 import { NextRequest } from "next/server";
 
-const SYSTEM_PROMPT =
-  "You help polish and expand the user's note. Output only the improved text, no preamble or explanation.";
+const SYSTEM_PROMPTS: Record<string, string> = {
+  polish:
+    "You help polish and expand the user's note. Output only the improved text, no preamble or explanation.",
+  rewrite:
+    "Rewrite the user's text in a different style or phrasing. Output only the rewritten text, no preamble.",
+  summarize:
+    "Summarize the user's text concisely. Output only the summary, no preamble.",
+  expand:
+    "Expand the user's text with more detail and depth. Keep the same tone and meaning. Output only the expanded text, no preamble.",
+  translate:
+    "Translate the user's text to Chinese if it is in another language, or to English if it is in Chinese. Output only the translation, no preamble.",
+};
 
 function getRequiredKeyForProvider(provider: string): string | undefined {
   const normalized = provider?.trim().toLowerCase() ?? "openai";
@@ -56,9 +66,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const actionRaw = body?.action;
+    const action =
+      typeof actionRaw === "string" && SYSTEM_PROMPTS[actionRaw]
+        ? actionRaw
+        : "polish";
+    const systemPrompt = SYSTEM_PROMPTS[action];
+
     const stream = await streamChat(
       [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content },
       ],
       undefined
