@@ -1,7 +1,7 @@
 /**
- * Firebase app and Firestore initialization for client-side use.
- * Uses NEXT_PUBLIC_* env vars only (safe for browser). Required for real-time
- * subscriptions (onSnapshot). Do not put secret keys in client config.
+ * Firebase app and Firestore initialization.
+ * Uses NEXT_PUBLIC_* env vars (safe for client; available at runtime on server in Vercel).
+ * When env is set, works in both browser and API routes so notes API can use Firestore on Vercel.
  */
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -19,27 +19,24 @@ let app: ReturnType<typeof initializeApp> | null = null;
 let firestore: ReturnType<typeof getFirestore> | null = null;
 
 function getApp() {
-  if (typeof window === "undefined") return null;
-  if (!app) {
-    const hasConfig =
-      firebaseConfig.apiKey &&
-      firebaseConfig.authDomain &&
-      firebaseConfig.projectId &&
-      firebaseConfig.storageBucket &&
-      firebaseConfig.messagingSenderId &&
-      firebaseConfig.appId;
-    if (!hasConfig) return null;
-    app = initializeApp(firebaseConfig);
-  }
+  if (app) return app;
+  const hasConfig =
+    firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.storageBucket &&
+    firebaseConfig.messagingSenderId &&
+    firebaseConfig.appId;
+  if (!hasConfig) return null;
+  app = initializeApp(firebaseConfig);
   return app;
 }
 
 /**
- * Returns Firestore instance for client-side use. Returns null when run on
- * server or when Firebase env vars are missing.
+ * Returns Firestore instance when Firebase env vars are set.
+ * Works in both browser (client components, real-time sync) and server (API routes on Vercel).
  */
 export function getFirestoreInstance(): ReturnType<typeof getFirestore> | null {
-  if (typeof window === "undefined") return null;
   const firebaseApp = getApp();
   if (!firebaseApp) return null;
   if (!firestore) firestore = getFirestore(firebaseApp);

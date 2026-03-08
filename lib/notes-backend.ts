@@ -44,9 +44,20 @@ let _backend: NotesBackend | null = null;
 /**
  * Returns the notes backend: Firestore if configured, otherwise SQLite.
  * Use in API routes only (server-side).
+ * On Vercel, Firestore must be configured; SQLite is not supported there.
  */
 export function getNotesBackend(): NotesBackend {
   if (_backend) return _backend;
-  _backend = getFirestoreInstance() ? firestoreBackend() : sqliteBackend();
+  const firestore = getFirestoreInstance();
+  if (firestore) {
+    _backend = firestoreBackend();
+    return _backend;
+  }
+  if (typeof process !== "undefined" && process.env.VERCEL) {
+    throw new Error(
+      "Notes backend not available on Vercel: set NEXT_PUBLIC_FIREBASE_* env vars to use Firestore. See docs/DEPLOY.md."
+    );
+  }
+  _backend = sqliteBackend();
   return _backend;
 }
