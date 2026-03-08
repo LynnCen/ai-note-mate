@@ -2,6 +2,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   setDoc,
   updateDoc,
@@ -44,6 +46,35 @@ export function subscribeNotes(callback: (notes: Note[]) => void): () => void {
     callback(notes);
   });
   return unsubscribe;
+}
+
+/**
+ * Fetch all notes, newest first. For server-side use (e.g. API routes).
+ */
+export function getAll(): Promise<Note[]> {
+  const db = getFirestoreInstance();
+  if (!db) return Promise.resolve([]);
+  const col = collection(db, COLLECTION_ID);
+  return getDocs(col).then((snapshot) =>
+    snapshot.docs
+      .map((d) => docToNote(d.id, d.data()))
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )
+  );
+}
+
+/**
+ * Fetch a single note by id. For server-side use (e.g. API routes).
+ */
+export function getById(id: string): Promise<Note | null> {
+  const db = getFirestoreInstance();
+  if (!db) return Promise.resolve(null);
+  const ref = doc(db, COLLECTION_ID, id);
+  return getDoc(ref).then((snap) =>
+    snap.exists() ? docToNote(snap.id, snap.data()) : null
+  );
 }
 
 /**

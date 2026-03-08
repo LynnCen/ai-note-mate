@@ -41,4 +41,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## 可访问链接 / Demo
 
-You can deploy this app to [Vercel](https://vercel.com): connect this repository, set the same environment variables in the Vercel project (e.g. `LLM_PROVIDER`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GML_API_KEY`, or `GROQ_API_KEY`, and optionally all `NEXT_PUBLIC_FIREBASE_*` for Firestore), then deploy. A live link will be at `https://your-project.vercel.app` (replace with your project name), or see the Vercel dashboard for the exact URL after the first deploy.
+将应用部署到 Vercel 即可获得公网链接：连接本仓库并配置环境变量后部署。详细步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+
+环境变量与本地一致：`LLM_PROVIDER`、对应 API Key（如 `OPENAI_API_KEY`、`GML_API_KEY` 等），以及可选的 `NEXT_PUBLIC_FIREBASE_*`（配置后笔记使用 Firestore 持久化）。
