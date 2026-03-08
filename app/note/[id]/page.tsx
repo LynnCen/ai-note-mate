@@ -3,9 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useNotesStore } from "@/stores/useNotesStore";
 import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
 import { AiResultModal } from "@/components/AiResultModal";
+import { SelectionAiPopover, type AiAction } from "@/components/SelectionAiPopover";
+import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Note } from "@/types/note";
 
 const DEBOUNCE_MS = 500;
@@ -29,8 +43,12 @@ export default function NoteDetailPage() {
     selectionEnd: number;
     contentAtClick: string;
   } | null>(null);
+  const [selectionPopoverOpen, setSelectionPopoverOpen] = useState(false);
+  const [selectionPosition, setSelectionPosition] = useState<{ top: number; left: number } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
 
   // Resolve note: from store or fetch by id
   useEffect(() => {
@@ -86,7 +104,9 @@ export default function NoteDetailPage() {
           body: JSON.stringify({ title: newTitle }),
         });
         const data = res.ok ? await res.json() : null;
-        if (data) updateNote(id, { title: data.title, updatedAt: data.updatedAt });
+        if (data) {
+          updateNote(id, { title: data.title, updatedAt: data.updatedAt });
+        }
       } finally {
         setSaving(false);
       }
@@ -105,7 +125,9 @@ export default function NoteDetailPage() {
           body: JSON.stringify({ content: newContent }),
         });
         const data = res.ok ? await res.json() : null;
-        if (data) updateNote(id, { content: data.content, updatedAt: data.updatedAt });
+        if (data) {
+          updateNote(id, { content: data.content, updatedAt: data.updatedAt });
+        }
       } finally {
         setSaving(false);
       }
@@ -144,13 +166,31 @@ export default function NoteDetailPage() {
       const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
       if (!res.ok) return;
       deleteNote(id);
+      setDeleteDialogOpen(false);
+      toast.success("笔记已删除");
       router.push("/");
     } finally {
       setDeleting(false);
     }
   }
 
-  async function handleAiProcess() {
+  const handleSelectionChange = useCallback(() => {
+    const range = editorRef.current?.getSelectionRange() ?? null;
+    const wrapper = editorWrapperRef.current;
+    if (range && wrapper) {
+      const rect = wrapper.getBoundingClientRect();
+      setSelectionPosition({
+        top: rect.top + rect.height,
+        left: rect.left + rect.width / 2,
+      });
+      setSelectionPopoverOpen(true);
+    } else {
+      setSelectionPopoverOpen(false);
+      setSelectionPosition(null);
+    }
+  }, []);
+
+  async function handleAiProcess(action: AiAction = "polish") {
     const range = editorRef.current?.getSelectionRange() ?? null;
     const contentToSend = range
       ? content.slice(range.start, range.end)
@@ -160,16 +200,16 @@ export default function NoteDetailPage() {
       const res = await fetch("/api/ai/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: contentToSend }),
+        body: JSON.stringify({ content: contentToSend, action }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err?.error ?? "AI 处理请求失败");
+        toast.error(err?.error ?? "AI 处理请求失败");
         return;
       }
       const body = res.body;
       if (!body) {
-        alert("未返回流");
+        toast.error("未返回流");
         return;
       }
       setAiMeta({
@@ -180,7 +220,7 @@ export default function NoteDetailPage() {
       });
       setAiStream(body);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "请求失败");
+      toast.error(e instanceof Error ? e.message : "请求失败");
     }
   }
 
@@ -203,7 +243,9 @@ export default function NoteDetailPage() {
           body: JSON.stringify({ content: newContent }),
         });
         const data = res.ok ? await res.json() : null;
-        if (data) updateNote(id, { content: data.content, updatedAt: data.updatedAt });
+        if (data) {
+          updateNote(id, { content: data.content, updatedAt: data.updatedAt });
+        }
       } finally {
         setSaving(false);
       }
@@ -265,7 +307,7 @@ export default function NoteDetailPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleAiProcess}
+              onClick={() => handleAiProcess()}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
             >
               AI 处理
@@ -275,7 +317,7 @@ export default function NoteDetailPage() {
             )}
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={() => setDeleteDialogOpen(true)}
               disabled={deleting}
               className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:bg-zinc-800/50 dark:text-red-400 dark:hover:bg-red-900/20"
             >
@@ -283,6 +325,27 @@ export default function NoteDetailPage() {
             </button>
           </div>
         </header>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除笔记</AlertDialogTitle>
+              <AlertDialogDescription>
+                确定要删除这篇笔记吗？此操作不可恢复。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? "删除中…" : "确定删除"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <input
           type="text"
@@ -293,14 +356,34 @@ export default function NoteDetailPage() {
           className="mb-4 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xl font-medium text-foreground placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-500"
         />
 
-        <NoteEditor
-          ref={editorRef}
-          value={content}
-          onChange={setContent}
-          onSave={saveContent}
-          placeholder="写点什么…"
-        />
+        <Tabs defaultValue="edit" className="w-full">
+          <TabsList variant="line" className="mb-2">
+            <TabsTrigger value="edit">编辑</TabsTrigger>
+            <TabsTrigger value="preview">预览</TabsTrigger>
+          </TabsList>
+          <TabsContent value="edit">
+            <div ref={editorWrapperRef}>
+              <NoteEditor
+                ref={editorRef}
+                value={content}
+                onChange={setContent}
+                onSave={saveContent}
+                onSelectionChange={handleSelectionChange}
+                placeholder="写点什么…"
+              />
+            </div>
+          </TabsContent>
+          <TabsContent value="preview">
+            <MarkdownPreview content={content} />
+          </TabsContent>
+        </Tabs>
       </div>
+      <SelectionAiPopover
+        open={selectionPopoverOpen}
+        onOpenChange={setSelectionPopoverOpen}
+        position={selectionPosition}
+        onAction={(action) => handleAiProcess(action)}
+      />
       <AiResultModal
         stream={aiStream}
         onAccept={handleAiAccept}

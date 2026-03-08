@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseChunk } from "@/lib/stream-utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 /** Line height for virtual list (px). Must match rendered line height. */
 const VIRTUAL_LINE_HEIGHT_PX = 24;
@@ -134,15 +136,17 @@ export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProp
   if (stream === null) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="ai-result-title">
-      <div className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800">
-        <h2 id="ai-result-title" className="sr-only">
-          AI 处理结果
-        </h2>
-        <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <span className="text-sm font-medium text-foreground">AI 处理结果</span>
-        </div>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onDiscard(); }}>
+      <DialogContent
+        showCloseButton={true}
+        className="flex max-h-[85vh] max-w-xl flex-col gap-0 p-0"
+        aria-describedby="ai-result-content"
+      >
+        <DialogHeader className="border-b border-border px-4 py-3">
+          <DialogTitle id="ai-result-title">AI 处理结果</DialogTitle>
+        </DialogHeader>
         <div
+          id="ai-result-content"
           ref={scrollContainerRef}
           className="min-h-[120px] max-h-[50vh] flex-1 overflow-y-auto whitespace-pre-wrap wrap-break-word px-4 py-3 text-foreground"
           aria-live="polite"
@@ -161,24 +165,15 @@ export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProp
             streamedText || (!streamDone ? "处理中…" : "")
           )}
         </div>
-        <div className="flex justify-end gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <button
-            type="button"
-            onClick={onDiscard}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <Button type="button" variant="outline" onClick={onDiscard}>
             丢弃
-          </button>
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={!streamDone}
-            className="rounded-lg border border-zinc-300 bg-zinc-800 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:hover:bg-zinc-600"
-          >
+          </Button>
+          <Button type="button" onClick={handleAccept} disabled={!streamDone}>
             接受
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
