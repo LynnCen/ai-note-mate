@@ -37,18 +37,25 @@ export default function Home() {
   async function handleNewNote() {
     setCreating(true);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
       const res = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "", content: "" }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (!res.ok) {
+        console.error("Create note failed:", (data as { error?: string }).error ?? res.status);
         return;
       }
       const note = data as Note;
       addNote(note);
       router.push(`/note/${note.id}`);
+    } catch (e) {
+      console.error("Create note error:", e);
     } finally {
       setCreating(false);
     }
