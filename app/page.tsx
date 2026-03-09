@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useNotesStore } from "@client/stores/useNotesStore";
-import type { Note } from "@/types/note";
 
 function formatDate(iso: string): string {
   try {
@@ -27,39 +26,19 @@ function summary(content: string, maxLen = 80): string {
 
 export default function Home() {
   const router = useRouter();
-  const { notes, fetchNotes, addNote } = useNotesStore();
-  const [creating, setCreating] = useState(false);
+  const { notes, fetchNotes, createLocalDraft } = useNotesStore();
 
   useEffect(() => {
     fetchNotes();
   }, [fetchNotes]);
 
-  async function handleNewNote() {
-    setCreating(true);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
-      const res = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "", content: "" }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      if (!res.ok) {
-        console.error("Create note failed:", (data as { error?: string }).error ?? res.status);
-        return;
-      }
-      const note = data as Note;
-      addNote(note);
-      router.push(`/note/${note.id}`);
-    } catch (e) {
-      console.error("Create note error:", e);
-    } finally {
-      setCreating(false);
-    }
+  function handleNewNote() {
+    const draft = createLocalDraft();
+    router.push(`/note/${draft.id}`);
   }
+
+  // 首页只展示已持久化的笔记，本地草稿只在编辑页可见
+  const persistedNotes = notes.filter((n) => !n.id.startsWith("local-"));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -71,20 +50,19 @@ export default function Home() {
           <button
             type="button"
             onClick={handleNewNote}
-            disabled={creating}
-            className="w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto"
+            className="w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-colors hover:opacity-90 sm:w-auto"
           >
-            {creating ? "创建中…" : "新建笔记"}
+            新建笔记
           </button>
         </header>
 
-        {notes.length === 0 ? (
+        {persistedNotes.length === 0 ? (
           <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400">
             暂无笔记，点击「新建笔记」开始
           </p>
         ) : (
           <ul className="grid gap-2 sm:gap-3">
-            {notes.map((note) => (
+            {persistedNotes.map((note) => (
               <li key={note.id}>
                 <Link
                   href={`/note/${note.id}`}
