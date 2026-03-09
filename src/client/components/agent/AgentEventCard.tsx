@@ -66,7 +66,7 @@ export function AgentEventCard({ event, onApplyToEditor }: AgentEventCardProps) 
       {(!config.collapsible || !collapsed) && body && (
         event.type === "tool_result" ? (
           <div className="mt-2 max-h-40 overflow-y-auto opacity-80">
-            <AgentMarkdown content={body} />
+            <AgentMarkdown content={body} className="text-xs" />
           </div>
         ) : (
           <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] opacity-80 max-h-40 overflow-y-auto">

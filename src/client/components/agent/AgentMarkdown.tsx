@@ -1,15 +1,16 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { twMerge } from "tailwind-merge";
 
 interface AgentMarkdownProps {
   content: string;
   className?: string;
 }
 
-export function AgentMarkdown({ content, className = "" }: AgentMarkdownProps) {
+export function AgentMarkdown({ content, className }: AgentMarkdownProps) {
   return (
-    <div className={`agent-markdown text-sm leading-relaxed ${className}`}>
+    <div className={twMerge("agent-markdown text-sm leading-relaxed", className)}>
       <ReactMarkdown
         components={{
           h1: ({ children }) => <h1 className="mt-3 mb-1.5 text-base font-semibold first:mt-0">{children}</h1>,
@@ -31,10 +32,10 @@ export function AgentMarkdown({ content, className = "" }: AgentMarkdownProps) {
             <pre className="mb-2 overflow-x-auto rounded-lg bg-muted p-3 text-xs">{children}</pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-3 border-border pl-3 italic text-muted-foreground">{children}</blockquote>
+            <blockquote className="border-l-[3px] border-border pl-3 italic text-muted-foreground">{children}</blockquote>
           ),
           a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer"
+            <a href={href?.startsWith("javascript:") ? "#" : (href ?? "#")} target="_blank" rel="noopener noreferrer"
                className="text-primary underline hover:no-underline">{children}</a>
           ),
           strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
