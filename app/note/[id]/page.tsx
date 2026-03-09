@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@client/components/ui/alert-dialog";
 import { useUnsavedChanges } from "@client/hooks/useUnsavedChanges";
+import { useResizablePanel } from "@client/hooks/useResizablePanel";
 import { AgentChatPanel } from "@client/components/agent/AgentChatPanel";
 import type { Note } from "@/types/note";
 
@@ -50,6 +51,7 @@ export default function NoteDetailPage() {
 
   const editorRef = useRef<NoteEditorHandle>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
+  const { panelWidth, onDividerMouseDown } = useResizablePanel();
 
   // 有未保存更改时，刷新/关闭标签页前弹原生确认框
   useUnsavedChanges(isDirty);
@@ -397,12 +399,29 @@ export default function NoteDetailPage() {
         </div>
       </div>
 
+      {/* 拖拽分隔条（仅大屏） */}
+      <div
+        className="hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-primary/20 active:bg-primary/30 transition-colors group select-none"
+        onMouseDown={onDividerMouseDown}
+        role="separator"
+        aria-label="调整面板宽度"
+      >
+        <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-primary/60 transition-colors" />
+      </div>
+
       {/* 右侧：Agent 对话面板（大屏显示，小屏隐藏） */}
-      <div className="hidden w-[380px] shrink-0 border-l border-border lg:flex lg:flex-col">
+      <div
+        className="hidden border-l border-border lg:flex lg:flex-col shrink-0"
+        style={{ width: panelWidth }}
+      >
         <AgentChatPanel
           noteId={id.startsWith("local-") ? null : id}
           noteTitle={title}
           noteContent={content}
+          onApplyToEditor={(agentContent) => {
+            setContent((prev) => prev + "\n\n" + agentContent);
+            setIsDirty(true);
+          }}
         />
       </div>
 
