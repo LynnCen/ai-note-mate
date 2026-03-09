@@ -4,22 +4,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotesStore } from "@client/stores/useNotesStore";
 import { AgentMessage } from "./AgentMessage";
 import { AgentInput } from "./AgentInput";
-import { parseChunk } from "@server/stream-utils";
-import type { AgentMessage as AgentMessageType } from "@/types/agent";
+import type { AgentMessage as AgentMessageType, AgentStep } from "@/types/agent";
 
 export interface AgentChatPanelProps {
   noteId: string | null;
   noteTitle: string;
   noteContent: string;
+  /** Called when user clicks "应用到编辑器" on an answer step */
+  onApplyToEditor?: (content: string) => void;
 }
 
-export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPanelProps) {
+type SSEEventType = "thought" | "action" | "observation" | "answer" | "error";
+
+export function AgentChatPanel({
+  noteId,
+  noteTitle,
+  noteContent,
+  onApplyToEditor,
+}: AgentChatPanelProps) {
   const { notes } = useNotesStore();
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 新消息到来时自动滚到底部
+  // Auto-scroll to bottom on new content
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -34,16 +42,16 @@ export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPane
         createdAt: new Date().toISOString(),
       };
 
-      const updatedMessages = [...messages, userMsg];
-      setMessages(updatedMessages);
+      const conversationHistory = [...messages, userMsg];
+      setMessages(conversationHistory);
       setStreaming(true);
 
-      // 先占位 assistant 消息，流式追加内容
       const assistantId = `msg-${Date.now() + 1}`;
       const assistantMsg: AgentMessageType = {
         id: assistantId,
         role: "assistant",
         content: "",
+        steps: [],
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -53,11 +61,13 @@ export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPane
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+            messages: conversationHistory.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
             noteId,
             noteTitle,
             noteContent,
-            // 只传已持久化的笔记，不含本地草稿
             allNotes: notes.filter((n) => !n.id.startsWith("local-")),
           }),
         });
@@ -73,47 +83,85 @@ export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPane
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
-        let accumulated = "";
+        let rawBuffer = "";
+        let pendingEvent: SSEEventType | null = null;
+
+        /**
+         * Apply a parsed SSE event to the assistant message.
+         * thought/action/observation → push to steps[]
+         * answer → set content
+         * error  → set content as error text
+         */
+        const applyEvent = (event: SSEEventType, dataStr: string) => {
+          let data: Record<string, string> = {};
+          try {
+            data = JSON.parse(dataStr);
+          } catch {
+            // ignore malformed data
+          }
+
+          if (event === "answer") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: data.content ?? "" }
+                  : m
+              )
+            );
+            return;
+          }
+
+          if (event === "error") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: data.content ?? "发生错误" }
+                  : m
+              )
+            );
+            return;
+          }
+
+          // thought / action / observation → append to steps
+          const step: AgentStep = {
+            type: event,
+            content: data.content ?? "",
+            ...(data.toolName ? { toolName: data.toolName } : {}),
+          };
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, steps: [...(m.steps ?? []), step] }
+                : m
+            )
+          );
+        };
 
         while (true) {
           const { value, done } = await reader.read();
           if (value) {
-            buffer += decoder.decode(value, { stream: true });
-            const parts = buffer.split("\n\n");
-            buffer = parts.pop() ?? "";
-            for (const part of parts) {
-              const text = parseChunk(part);
-              if (text) {
-                accumulated += text;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, content: accumulated } : m
-                  )
-                );
+            rawBuffer += decoder.decode(value, { stream: true });
+            const lines = rawBuffer.split("\n");
+            rawBuffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                pendingEvent = line.slice(7).trim() as SSEEventType;
+              } else if (line.startsWith("data: ") && pendingEvent) {
+                applyEvent(pendingEvent, line.slice(6));
+                pendingEvent = null;
               }
             }
           }
-          if (done) {
-            // 处理最后剩余 buffer
-            if (buffer) {
-              const text = parseChunk(buffer);
-              if (text) {
-                accumulated += text;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId ? { ...m, content: accumulated } : m
-                  )
-                );
-              }
-            }
-            break;
-          }
+          if (done) break;
         }
       } catch {
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: "请求出错，请重试。" } : m
+            m.id === assistantId
+              ? { ...m, content: "请求出错，请重试。" }
+              : m
           )
         );
       } finally {
@@ -125,9 +173,14 @@ export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPane
 
   return (
     <div className="flex h-full flex-col">
-      {/* 顶部标题栏 */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
-        <h2 className="text-sm font-medium">Agent 对话</h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Agent 对话</span>
+          {streaming && (
+            <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setMessages([])}
@@ -137,30 +190,41 @@ export function AgentChatPanel({ noteId, noteTitle, noteContent }: AgentChatPane
         </button>
       </div>
 
-      {/* 消息列表 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
+      {/* Message list */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {messages.length === 0 ? (
-          <div className="mt-8 space-y-2 text-center text-xs text-muted-foreground px-4">
-            <p>你好！我是 Agent，我可以：</p>
-            <ul className="text-left space-y-1 mt-2">
-              <li>📖 分析当前笔记内容</li>
-              <li>🔍 搜索你的其他笔记</li>
-              <li>📝 帮你起草文档模板</li>
+          <div className="mt-10 space-y-3 text-center px-4">
+            <p className="text-sm font-medium text-foreground">你好！我是文档 Agent</p>
+            <p className="text-xs text-muted-foreground">
+              我会展示完整的思考过程：推理 → 调用工具 → 给出答案
+            </p>
+            <ul className="text-left space-y-2 mt-4 text-xs text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span>📖</span>
+                <span>分析并引用当前笔记内容</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span>🔍</span>
+                <span>搜索你的所有笔记知识库</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span>📝</span>
+                <span>起草会议纪要、技术文档、周报</span>
+              </li>
             </ul>
           </div>
         ) : (
-          messages.map((m) => <AgentMessage key={m.id} message={m} />)
-        )}
-        {streaming && messages[messages.length - 1]?.role === "assistant" && messages[messages.length - 1]?.content === "" && (
-          <div className="flex justify-start mb-3">
-            <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground animate-pulse">
-              思考中…
-            </div>
-          </div>
+          messages.map((m) => (
+            <AgentMessage
+              key={m.id}
+              message={m}
+              onApplyToEditor={onApplyToEditor}
+            />
+          ))
         )}
       </div>
 
-      {/* 输入框 */}
+      {/* Input */}
       <div className="shrink-0">
         <AgentInput onSend={sendMessage} disabled={streaming} />
       </div>
