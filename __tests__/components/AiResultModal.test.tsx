@@ -29,6 +29,25 @@ describe("AiResultModal", () => {
     expect(onDiscard).not.toHaveBeenCalled();
   });
 
+  it("detects data: [DONE] as stream completion", async () => {
+    const onAccept = vi.fn();
+    const onDiscard = vi.fn();
+    const stream = createMockStream([
+      'data: {"content":"hello"}\n\n',
+      "data: [DONE]\n\n",
+      // TCP may stay open after [DONE] — stream does NOT close here
+    ]);
+
+    render(
+      <AiResultModal stream={stream} onAccept={onAccept} onDiscard={onDiscard} />
+    );
+
+    await waitFor(() => {
+      const acceptButton = screen.getByRole("button", { name: /^接受$/ });
+      expect(acceptButton).not.toBeDisabled();
+    });
+  });
+
   it("Accept button is disabled while streaming, enabled after done; calls onAccept with full text", async () => {
     const onAccept = vi.fn();
     const onDiscard = vi.fn();

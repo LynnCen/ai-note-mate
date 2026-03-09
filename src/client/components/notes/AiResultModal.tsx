@@ -27,6 +27,7 @@ export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResul
   const rafIdRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollRafRef = useRef<number | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
   const [visibleWindow, setVisibleWindow] = useState({ start: 0, end: 100 });
 
   const flushToState = useCallback(() => {
@@ -39,6 +40,7 @@ export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResul
     accumulatedRef.current = "";
 
     const reader = stream.getReader();
+    readerRef.current = reader;
     const decoder = new TextDecoder();
     let buffer = "";
 
@@ -52,14 +54,33 @@ export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResul
     (async () => {
       setStreamedText("");
       setStreamDone(false);
+
+      const finish = () => {
+        if (buffer) {
+          const text = parseChunk(buffer);
+          if (text) accumulatedRef.current += text;
+        }
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        setStreamedText(accumulatedRef.current);
+        setStreamDone(true);
+      };
+
       try {
-        while (true) {
+        outer: while (true) {
           const { value, done } = await reader.read();
           if (value) {
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n\n");
             buffer = lines.pop() ?? "";
             for (const line of lines) {
+              // Explicit LLM done signal — don't wait for TCP close
+              if (line.trim() === "data: [DONE]") {
+                finish();
+                break outer;
+              }
               const text = parseChunk(line);
               if (text) {
                 accumulatedRef.current += text;
@@ -68,33 +89,18 @@ export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResul
             }
           }
           if (done) {
-            if (buffer) {
-              const text = parseChunk(buffer);
-              if (text) {
-                accumulatedRef.current += text;
-              }
-            }
-            if (rafIdRef.current !== null) {
-              cancelAnimationFrame(rafIdRef.current);
-              rafIdRef.current = null;
-            }
-            setStreamedText(accumulatedRef.current);
-            setStreamDone(true);
+            finish();
             break;
           }
         }
       } catch {
-        if (rafIdRef.current !== null) {
-          cancelAnimationFrame(rafIdRef.current);
-          rafIdRef.current = null;
-        }
-        setStreamedText(accumulatedRef.current);
-        setStreamDone(true);
+        finish();
       }
     })();
 
     return () => {
-      reader.cancel();
+      reader.cancel().catch(() => {});
+      readerRef.current = null;
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -167,13 +173,30 @@ export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResul
             streamedText || (!streamDone ? "处理中…" : "")
           )}
         </div>
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button type="button" variant="outline" onClick={() => { onCancel?.(); onDiscard(); }}>
-            丢弃
-          </Button>
-          <Button type="button" onClick={handleAccept} disabled={!streamDone}>
-            接受
-          </Button>
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          {/* Left: stop button while streaming */}
+          <div>
+            {!streamDone && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { onCancel?.(); readerRef.current?.cancel().catch(() => {}); setStreamDone(true); }}
+                className="text-destructive border-destructive/50 hover:bg-destructive/5"
+              >
+                停止生成
+              </Button>
+            )}
+          </div>
+          {/* Right: discard / accept */}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => { onCancel?.(); onDiscard(); }}>
+              丢弃
+            </Button>
+            <Button type="button" onClick={handleAccept} disabled={!streamDone}>
+              接受
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
