@@ -9,7 +9,7 @@ import { NoteEditor, type NoteEditorHandle } from "@client/components/notes/Note
 import { AiResultModal } from "@client/components/notes/AiResultModal";
 import { SelectionAiPopover, type AiAction } from "@client/components/notes/SelectionAiPopover";
 import { MarkdownPreview } from "@client/components/notes/MarkdownPreview";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@client/components/ui/tabs";
+import { useResizableHeight } from "@client/hooks/useResizableHeight";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +55,10 @@ export default function NoteDetailPage() {
   const aiAbortRef = useRef<AbortController | null>(null);
   const { panelWidth, onDividerMouseDown } = useResizablePanel();
   const [mobileAgentOpen, setMobileAgentOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"preview" | "edit">("preview");
+
+  const MIN_HEIGHT = 200;
+  const { height: editorHeight, onHandleMouseDown: onHeightDragStart } = useResizableHeight();
 
   // 有未保存更改时，刷新/关闭标签页前弹原生确认框
   useUnsavedChanges(isDirty);
@@ -360,6 +364,13 @@ export default function NoteDetailPage() {
               )}
               <button
                 type="button"
+                onClick={() => setEditorMode((m) => m === "preview" ? "edit" : "preview")}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
+              >
+                {editorMode === "preview" ? "✏️ 编辑" : "👁 预览"}
+              </button>
+              <button
+                type="button"
                 onClick={() => handleAiProcess()}
                 className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
               >
@@ -413,26 +424,36 @@ export default function NoteDetailPage() {
             className="mb-4 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xl font-medium text-foreground placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-800/50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-500 dark:focus:ring-zinc-500"
           />
 
-          <Tabs defaultValue="edit" className="w-full">
-            <TabsList variant="line" className="mb-2">
-              <TabsTrigger value="edit">编辑</TabsTrigger>
-              <TabsTrigger value="preview">预览</TabsTrigger>
-            </TabsList>
-            <TabsContent value="edit">
-              <div ref={editorWrapperRef}>
+          {editorMode === "edit" ? (
+            <div>
+              <div
+                ref={editorWrapperRef}
+                style={{ height: editorHeight, minHeight: MIN_HEIGHT }}
+                className="overflow-hidden"
+              >
                 <NoteEditor
                   ref={editorRef}
                   value={content}
                   onChange={handleContentChange}
                   onSelectionChange={handleSelectionChange}
                   placeholder="写点什么…"
+                  className="h-full"
                 />
               </div>
-            </TabsContent>
-            <TabsContent value="preview">
+              {/* Drag handle */}
+              <div
+                onMouseDown={onHeightDragStart}
+                className="flex h-3 cursor-row-resize items-center justify-center hover:bg-primary/20 transition-colors select-none"
+                title="拖拽调整编辑器高度"
+              >
+                <div className="h-0.5 w-12 rounded-full bg-border" />
+              </div>
+            </div>
+          ) : (
+            <div ref={editorWrapperRef}>
               <MarkdownPreview content={content} />
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </div>
       </div>
 
