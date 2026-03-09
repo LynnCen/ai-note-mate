@@ -1,6 +1,7 @@
 "use client";
 
 import { AgentEventCard } from "./AgentEventCard";
+import { AgentMarkdown } from "./AgentMarkdown";
 import type { AgentMessage as AgentMessageType } from "@/types/agent";
 
 export interface AgentMessageProps {
@@ -38,8 +39,8 @@ export function AgentMessage({ message, onApplyToEditor }: AgentMessageProps) {
 
       {/* Flowing content text */}
       {message.fullContent && (
-        <div className="rounded-2xl bg-muted px-3 py-2 text-sm text-foreground">
-          <p className="whitespace-pre-wrap">{message.fullContent}</p>
+        <div className="rounded-2xl bg-muted px-3 py-2.5 text-sm text-foreground">
+          <AgentMarkdown content={message.fullContent} />
 
           {/* Streaming cursor */}
           {isStreaming && !hasError && (

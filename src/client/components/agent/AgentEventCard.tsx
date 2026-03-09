@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AgentEvent } from "@/types/agent";
+import { AgentMarkdown } from "./AgentMarkdown";
 
 interface AgentEventCardProps {
   event: AgentEvent;
@@ -63,9 +64,15 @@ export function AgentEventCard({ event, onApplyToEditor }: AgentEventCardProps) 
       </button>
 
       {(!config.collapsible || !collapsed) && body && (
-        <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] opacity-80 max-h-40 overflow-y-auto">
-          {body}
-        </pre>
+        event.type === "tool_result" ? (
+          <div className="mt-2 max-h-40 overflow-y-auto opacity-80">
+            <AgentMarkdown content={body} />
+          </div>
+        ) : (
+          <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[11px] opacity-80 max-h-40 overflow-y-auto">
+            {body}
+          </pre>
+        )
       )}
 
       {/* Apply to editor only for tool_result (never for error) */}
