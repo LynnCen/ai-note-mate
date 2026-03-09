@@ -50,9 +50,10 @@ export async function* chatWithToolsStream(
     model,
     messages: messages.map((m) => ({
       role: m.role,
-      content: m.content,
+      content: m.content ?? null,
       ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
       ...(m.name ? { name: m.name } : {}),
+      ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
     })),
     stream: true,
   };
@@ -95,7 +96,7 @@ export async function* chatWithToolsStream(
   let buffer = "";
 
   // Track in-progress tool calls by stream index
-  const toolCalls: Record<number, { id: string; name: string }> = {};
+  const toolCalls: Record<number, { id: string; name: string; started: boolean }> = {};
   let finishReason: string | null = null;
   let hasAnyToolCall = false;
 
@@ -143,19 +144,18 @@ export async function* chatWithToolsStream(
           const tcIdx = tc.index;
 
           if (!toolCalls[tcIdx]) {
-            toolCalls[tcIdx] = { id: tc.id ?? "", name: tc.function?.name ?? "" };
+            toolCalls[tcIdx] = { id: tc.id ?? "", name: tc.function?.name ?? "", started: false };
           }
-          // Accumulate id and name as they may arrive in separate deltas
+          // Accumulate id and name — they may arrive in separate deltas
           if (tc.id) toolCalls[tcIdx].id = tc.id;
           if (tc.function?.name) toolCalls[tcIdx].name = tc.function.name;
 
-          // Emit tool_call_start once we have both id and name
           const entry = toolCalls[tcIdx];
-          if (entry.id && entry.name && !hasAnyToolCall) {
+
+          // Emit tool_call_start exactly once per tool call, when both id and name are known
+          if (!entry.started && entry.id && entry.name) {
+            entry.started = true;
             hasAnyToolCall = true;
-          }
-          if (entry.id && entry.name && tc.function?.name) {
-            // First delta with name — emit start event
             yield {
               type: "tool_call_start",
               callId: entry.id,

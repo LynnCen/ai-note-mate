@@ -14,7 +14,7 @@
  */
 import { chatWithToolsStream } from "@server/llm";
 import { extractToolCalls } from "@server/llm/providers/tool-calling";
-import type { ChatMessage, ProviderStreamEvent } from "@server/llm/types";
+import type { ChatMessage, ProviderStreamEvent, ToolCall } from "@server/llm/types";
 import { executeAgentTool, AGENT_TOOLS } from "./tool-registry";
 import type { AgentContext } from "./types";
 import type { Note } from "@/types/note";
@@ -118,8 +118,18 @@ export async function* runToolCallingLoop(
       return;
     }
 
-    // Append assistant turn to history
-    history.push({ role: "assistant", content: assistantContent });
+    // Append assistant turn with proper tool_calls so the LLM knows
+    // what tools it already called and won't repeat them.
+    const toolCallsForHistory: ToolCall[] = toolCalls.map((tc) => ({
+      id: tc.callId,
+      type: "function",
+      function: { name: tc.toolName, arguments: tc.argsJson },
+    }));
+    history.push({
+      role: "assistant",
+      content: assistantContent || null,
+      tool_calls: toolCallsForHistory,
+    });
 
     // Execute each tool and append results
     for (const tc of toolCalls) {

@@ -4,11 +4,21 @@
 
 export type ChatRole = "user" | "assistant" | "system" | "tool";
 
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
 export interface ChatMessage {
   role: ChatRole;
-  content: string;
+  content: string | null;
   tool_call_id?: string; // for tool role messages
   name?: string; // for tool role messages
+  tool_calls?: ToolCall[]; // for assistant messages that call tools
 }
 
 export interface StreamOptions {

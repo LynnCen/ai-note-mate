@@ -8,7 +8,7 @@ import type { ChatMessage, StreamOptions } from "../types";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 function toOpenAIMessages(messages: ChatMessage[]): { role: string; content: string }[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
+  return messages.map((m) => ({ role: m.role, content: m.content ?? "" }));
 }
 
 /**

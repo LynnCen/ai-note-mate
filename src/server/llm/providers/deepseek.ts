@@ -8,7 +8,7 @@ import type { ChatMessage, StreamOptions } from "../types";
 const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
 
 function toDeepSeekMessages(messages: ChatMessage[]): { role: string; content: string }[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
+  return messages.map((m) => ({ role: m.role, content: m.content ?? "" }));
 }
 
 /**

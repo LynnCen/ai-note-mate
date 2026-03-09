@@ -17,6 +17,7 @@ export type {
   ChatRole,
   StreamOptions,
   ToolDefinition,
+  ToolCall,
   ProviderStreamEvent,
 } from "./types";
 

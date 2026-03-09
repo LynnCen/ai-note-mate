@@ -12,7 +12,7 @@ const GML_CHAT_URL = process.env.GML_API_BASE_URL
   : `${DEFAULT_GML_BASE}/chat/completions`;
 
 function toGmlMessages(messages: ChatMessage[]): { role: string; content: string }[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
+  return messages.map((m) => ({ role: m.role, content: m.content ?? "" }));
 }
 
 /**
