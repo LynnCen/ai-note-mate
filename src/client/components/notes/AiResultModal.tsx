@@ -169,8 +169,8 @@ export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProp
           <Button type="button" variant="outline" onClick={onDiscard}>
             丢弃
           </Button>
-          <Button type="button" onClick={handleAccept} disabled={!streamDone}>
-            接受
+          <Button type="button" onClick={handleAccept}>
+            {streamDone ? "接受" : "接受当前内容"}
           </Button>
         </div>
       </DialogContent>

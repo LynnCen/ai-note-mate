@@ -56,10 +56,16 @@ export function AgentChatPanel({
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, 60000);
+
       try {
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: conversationHistory.map((m) => ({
               role: m.role,
@@ -156,15 +162,18 @@ export function AgentChatPanel({
           }
           if (done) break;
         }
-      } catch {
+      } catch (err) {
+        const message =
+          err instanceof DOMException && err.name === "AbortError"
+            ? "请求超时，请稍后重试。"
+            : "请求出错，请重试。";
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: "请求出错，请重试。" }
-              : m
+            m.id === assistantId ? { ...m, content: message } : m
           )
         );
       } finally {
+        window.clearTimeout(timeoutId);
         setStreaming(false);
       }
     },

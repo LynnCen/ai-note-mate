@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of generator) {
+            console.log("chunk", chunk);
             controller.enqueue(new TextEncoder().encode(chunk));
           }
         } finally {

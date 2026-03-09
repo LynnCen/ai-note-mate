@@ -41,20 +41,11 @@ describe("AiResultModal", () => {
       <AiResultModal stream={stream} onAccept={onAccept} onDiscard={onDiscard} />
     );
 
-    const acceptButton = screen.getByRole("button", { name: /接受/ });
-    expect(acceptButton).toBeDisabled();
-
-    await waitFor(
-      () => {
-        expect(acceptButton).not.toBeDisabled();
-      },
-      { timeout: 2000 }
-    );
-
     await waitFor(() => {
       expect(screen.getByText("hello world")).toBeInTheDocument();
     });
 
+    const acceptButton = screen.getByRole("button", { name: /接受/ });
     fireEvent.click(acceptButton);
     expect(onAccept).toHaveBeenCalledTimes(1);
     expect(onAccept).toHaveBeenCalledWith("hello world");

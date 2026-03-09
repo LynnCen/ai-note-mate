@@ -193,18 +193,35 @@ export default function NoteDetailPage() {
 
   const handleSelectionChange = useCallback(() => {
     const range = editorRef.current?.getSelectionRange() ?? null;
+    const wrapper = editorWrapperRef.current;
+
     if (range) {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const domRange = selection.getRangeAt(0);
         const rect = domRange.getBoundingClientRect();
-        if (rect.width > 0) {
+        // 优先使用真实选区的矩形
+        if ((rect.width > 0 || rect.height > 0) && rect.top !== 0 && rect.left !== 0) {
           setSelectionAnchorRect(rect);
           setSelectionPopoverOpen(true);
           return;
         }
       }
+      // 回退：使用编辑器容器的下缘中点，保证至少能弹出工具条
+      if (wrapper) {
+        const r = wrapper.getBoundingClientRect();
+        const fallbackRect = new DOMRect(
+          r.left + r.width / 2,
+          r.top + r.height,
+          0,
+          0
+        );
+        setSelectionAnchorRect(fallbackRect);
+        setSelectionPopoverOpen(true);
+        return;
+      }
     }
+
     setSelectionPopoverOpen(false);
     setSelectionAnchorRect(null);
   }, []);
