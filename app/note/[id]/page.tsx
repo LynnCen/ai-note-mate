@@ -23,6 +23,7 @@ import {
 import { useUnsavedChanges } from "@client/hooks/useUnsavedChanges";
 import { useResizablePanel } from "@client/hooks/useResizablePanel";
 import { AgentChatPanel } from "@client/components/agent/AgentChatPanel";
+import { AgentMobileModal } from "@client/components/agent/AgentMobileModal";
 import type { Note } from "@/types/note";
 
 export default function NoteDetailPage() {
@@ -52,6 +53,7 @@ export default function NoteDetailPage() {
   const editorRef = useRef<NoteEditorHandle>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
   const { panelWidth, onDividerMouseDown } = useResizablePanel();
+  const [mobileAgentOpen, setMobileAgentOpen] = useState(false);
 
   // 有未保存更改时，刷新/关闭标签页前弹原生确认框
   useUnsavedChanges(isDirty);
@@ -338,6 +340,14 @@ export default function NoteDetailPage() {
               >
                 AI 处理
               </button>
+              {/* Mobile-only Agent button */}
+              <button
+                type="button"
+                onClick={() => setMobileAgentOpen(true)}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 lg:hidden"
+              >
+                Agent
+              </button>
               <button
                 type="button"
                 onClick={() => setDeleteDialogOpen(true)}
@@ -437,6 +447,19 @@ export default function NoteDetailPage() {
         stream={aiStream}
         onAccept={handleAiAccept}
         onDiscard={handleAiDiscard}
+      />
+
+      {/* Mobile full-screen Agent modal */}
+      <AgentMobileModal
+        open={mobileAgentOpen}
+        onClose={() => setMobileAgentOpen(false)}
+        noteId={id.startsWith("local-") ? null : id}
+        noteTitle={title}
+        noteContent={content}
+        onApplyToEditor={(agentContent) => {
+          setContent((prev) => prev + "\n\n" + agentContent);
+          setIsDirty(true);
+        }}
       />
     </div>
   );
