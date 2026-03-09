@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@client/components/ui/alert-dialog";
 import { useUnsavedChanges } from "@client/hooks/useUnsavedChanges";
+import { AgentChatPanel } from "@client/components/agent/AgentChatPanel";
 import type { Note } from "@/types/note";
 
 export default function NoteDetailPage() {
@@ -398,10 +399,11 @@ export default function NoteDetailPage() {
 
       {/* 右侧：Agent 对话面板（大屏显示，小屏隐藏） */}
       <div className="hidden w-[380px] shrink-0 border-l border-border lg:flex lg:flex-col">
-        {/* AgentChatPanel 将在 Task 18 接入 */}
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-          Agent 对话（即将接入）
-        </div>
+        <AgentChatPanel
+          noteId={id.startsWith("local-") ? null : id}
+          noteTitle={title}
+          noteContent={content}
+        />
       </div>
 
       <SelectionAiPopover
