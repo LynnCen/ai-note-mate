@@ -24,6 +24,8 @@ import { useUnsavedChanges } from "@client/hooks/useUnsavedChanges";
 import { useResizablePanel } from "@client/hooks/useResizablePanel";
 import { AgentChatPanel } from "@client/components/agent/AgentChatPanel";
 import { AgentMobileModal } from "@client/components/agent/AgentMobileModal";
+import { Sidebar } from "@client/components/layout/Sidebar";
+import { ChevronLeft } from "lucide-react";
 import type { Note } from "@/types/note";
 
 export default function NoteDetailPage() {
@@ -56,9 +58,19 @@ export default function NoteDetailPage() {
   const { panelWidth, onDividerMouseDown } = useResizablePanel();
   const [mobileAgentOpen, setMobileAgentOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"preview" | "edit">("preview");
+  const [agentCollapsed, setAgentCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("agent-panel-collapsed") === "true";
+  });
+  const [selectedTextForAgent, setSelectedTextForAgent] = useState("");
 
   const MIN_HEIGHT = 200;
   const { height: editorHeight, onHandleMouseDown: onHeightDragStart } = useResizableHeight();
+
+  // Persist agent collapsed state
+  useEffect(() => {
+    localStorage.setItem("agent-panel-collapsed", String(agentCollapsed));
+  }, [agentCollapsed]);
 
   // 有未保存更改时，刷新/关闭标签页前弹原生确认框
   useUnsavedChanges(isDirty);
@@ -201,6 +213,11 @@ export default function NoteDetailPage() {
     const wrapper = editorWrapperRef.current;
 
     if (range) {
+      if (range.start !== range.end) {
+        setSelectedTextForAgent(content.slice(range.start, range.end));
+      } else {
+        setSelectedTextForAgent("");
+      }
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const domRange = selection.getRangeAt(0);
@@ -227,9 +244,10 @@ export default function NoteDetailPage() {
       }
     }
 
+    setSelectedTextForAgent("");
     setSelectionPopoverOpen(false);
     setSelectionAnchorRect(null);
-  }, []);
+  }, [content]);
 
   async function handleAiProcess(action: AiAction = "polish") {
     const range = editorRef.current?.getSelectionRange() ?? null;
@@ -288,6 +306,27 @@ export default function NoteDetailPage() {
     setAiMeta(null);
   }, []);
 
+  const scrollToHeading = useCallback((headingId: string) => {
+    const lines = content.split("\n");
+    let counter = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^#{1,3}\s+/.test(lines[i])) {
+        if (`heading-${counter}` === headingId) {
+          const editorArea = editorWrapperRef.current;
+          if (editorArea) {
+            const ratio = i / Math.max(lines.length, 1);
+            const scrollParent = editorArea.closest(".overflow-y-auto") as HTMLElement | null;
+            if (scrollParent) {
+              scrollParent.scrollTop = scrollParent.scrollHeight * ratio;
+            }
+          }
+          return;
+        }
+        counter++;
+      }
+    }
+  }, [content]);
+
   if (!id) {
     return (
       <div className="min-h-screen bg-background text-foreground">
@@ -326,7 +365,16 @@ export default function NoteDetailPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* 左侧：编辑区 */}
+      {/* Left Sidebar (desktop only) */}
+      <div className="hidden lg:flex">
+        <Sidebar
+          currentNoteId={id}
+          noteContent={content}
+          onHeadingClick={scrollToHeading}
+        />
+      </div>
+
+      {/* Center: Editor area */}
       <div className="flex flex-1 flex-col overflow-y-auto min-w-0">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-5 sm:py-8">
           <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -457,31 +505,54 @@ export default function NoteDetailPage() {
         </div>
       </div>
 
-      {/* 拖拽分隔条（仅大屏） */}
-      <div
-        className="hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-primary/20 active:bg-primary/30 transition-colors group select-none"
-        onMouseDown={onDividerMouseDown}
-        role="separator"
-        aria-label="调整面板宽度"
-      >
-        <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-primary/60 transition-colors" />
-      </div>
+      {/* Right divider (desktop only, hidden when agent collapsed) */}
+      {!agentCollapsed && (
+        <div
+          className="hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-center justify-center hover:bg-primary/20 active:bg-primary/30 transition-colors group select-none"
+          onMouseDown={onDividerMouseDown}
+          role="separator"
+          aria-label="调整面板宽度"
+        >
+          <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-primary/60 transition-colors" />
+        </div>
+      )}
 
-      {/* 右侧：Agent 对话面板（大屏显示，小屏隐藏） */}
-      <div
-        className="hidden border-l border-border lg:flex lg:flex-col shrink-0"
-        style={{ width: panelWidth }}
-      >
-        <AgentChatPanel
-          noteId={id.startsWith("local-") ? null : id}
-          noteTitle={title}
-          noteContent={content}
-          onApplyToEditor={(agentContent) => {
-            setContent((prev) => prev + "\n\n" + agentContent);
-            setIsDirty(true);
-          }}
-        />
-      </div>
+      {/* Right: Agent panel or collapsed tab (desktop only) */}
+      {agentCollapsed ? (
+        <div className="hidden lg:flex w-8 shrink-0 flex-col items-center border-l border-border bg-muted/30 pt-4 gap-2">
+          <button
+            type="button"
+            onClick={() => setAgentCollapsed(false)}
+            className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+            title="展开对话"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span
+            className="text-[10px] font-medium text-muted-foreground tracking-widest select-none"
+            style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+          >
+            AGENT
+          </span>
+        </div>
+      ) : (
+        <div
+          className="hidden border-l border-border lg:flex lg:flex-col shrink-0"
+          style={{ width: panelWidth }}
+        >
+          <AgentChatPanel
+            noteId={id.startsWith("local-") ? null : id}
+            noteTitle={title}
+            noteContent={content}
+            selectedText={selectedTextForAgent}
+            onApplyToEditor={(agentContent) => {
+              setContent((prev) => prev + "\n\n" + agentContent);
+              setIsDirty(true);
+            }}
+            onToggleCollapse={() => setAgentCollapsed(true)}
+          />
+        </div>
+      )}
 
       <SelectionAiPopover
         open={selectionPopoverOpen}

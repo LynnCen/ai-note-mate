@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useNotesStore } from "@client/stores/useNotesStore";
 import { AgentMessage } from "./AgentMessage";
 import { AgentInput, type ContextChip } from "./AgentInput";
@@ -12,6 +13,7 @@ export interface AgentChatPanelProps {
   noteContent: string;
   onApplyToEditor?: (content: string) => void;
   selectedText?: string;
+  onToggleCollapse?: () => void;
 }
 
 export function AgentChatPanel({
@@ -20,6 +22,7 @@ export function AgentChatPanel({
   noteContent,
   onApplyToEditor,
   selectedText,
+  onToggleCollapse,
 }: AgentChatPanelProps) {
   const { notes } = useNotesStore();
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
@@ -246,14 +249,26 @@ export function AgentChatPanel({
             <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setMessages([])}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          disabled={streaming}
-        >
-          清空
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMessages([])}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            disabled={streaming}
+          >
+            清空
+          </button>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+              title="折叠对话面板"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Message list */}
