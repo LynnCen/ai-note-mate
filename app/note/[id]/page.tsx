@@ -46,7 +46,7 @@ export default function NoteDetailPage() {
     contentAtClick: string;
   } | null>(null);
   const [selectionPopoverOpen, setSelectionPopoverOpen] = useState(false);
-  const [selectionPosition, setSelectionPosition] = useState<{ top: number; left: number } | null>(null);
+  const [selectionAnchorRect, setSelectionAnchorRect] = useState<DOMRect | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -191,18 +191,20 @@ export default function NoteDetailPage() {
 
   const handleSelectionChange = useCallback(() => {
     const range = editorRef.current?.getSelectionRange() ?? null;
-    const wrapper = editorWrapperRef.current;
-    if (range && wrapper) {
-      const rect = wrapper.getBoundingClientRect();
-      setSelectionPosition({
-        top: rect.top + rect.height,
-        left: rect.left + rect.width / 2,
-      });
-      setSelectionPopoverOpen(true);
-    } else {
-      setSelectionPopoverOpen(false);
-      setSelectionPosition(null);
+    if (range) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const domRange = selection.getRangeAt(0);
+        const rect = domRange.getBoundingClientRect();
+        if (rect.width > 0) {
+          setSelectionAnchorRect(rect);
+          setSelectionPopoverOpen(true);
+          return;
+        }
+      }
     }
+    setSelectionPopoverOpen(false);
+    setSelectionAnchorRect(null);
   }, []);
 
   async function handleAiProcess(action: AiAction = "polish") {
@@ -428,7 +430,7 @@ export default function NoteDetailPage() {
       <SelectionAiPopover
         open={selectionPopoverOpen}
         onOpenChange={setSelectionPopoverOpen}
-        position={selectionPosition}
+        anchorRect={selectionAnchorRect}
         onAction={(action) => handleAiProcess(action)}
       />
       <AiResultModal
