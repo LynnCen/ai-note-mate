@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useNotesStore } from "@/stores/useNotesStore";
+import { useNotesStore } from "@client/stores/useNotesStore";
 import type { Note } from "@/types/note";
 
 function formatDate(iso: string): string {

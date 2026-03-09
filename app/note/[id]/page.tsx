@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useNotesStore } from "@/stores/useNotesStore";
-import { NoteEditor, type NoteEditorHandle } from "@/components/NoteEditor";
-import { AiResultModal } from "@/components/AiResultModal";
-import { SelectionAiPopover, type AiAction } from "@/components/SelectionAiPopover";
-import { MarkdownPreview } from "@/components/MarkdownPreview";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useNotesStore } from "@client/stores/useNotesStore";
+import { NoteEditor, type NoteEditorHandle } from "@client/components/notes/NoteEditor";
+import { AiResultModal } from "@client/components/notes/AiResultModal";
+import { SelectionAiPopover, type AiAction } from "@client/components/notes/SelectionAiPopover";
+import { MarkdownPreview } from "@client/components/notes/MarkdownPreview";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@client/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@client/components/ui/alert-dialog";
 import type { Note } from "@/types/note";
 
 const DEBOUNCE_MS = 500;

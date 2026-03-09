@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getFirestoreInstance } from "@/lib/firebase";
-import * as notesFirestore from "@/lib/notes-firestore";
+import { getFirestoreInstance } from "@server/firebase";
+import { getNotesRepository } from "@server/notes/repository";
 
 /**
  * GET /api/debug/firestore — diagnostic for Firestore connectivity.
@@ -25,7 +25,7 @@ export async function GET() {
   let getAllError: string | null = null;
   if (db) {
     try {
-      await notesFirestore.getAll();
+      await getNotesRepository().getAll();
       getAllOk = true;
     } catch (e) {
       getAllError = e instanceof Error ? e.message : String(e);

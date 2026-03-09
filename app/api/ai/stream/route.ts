@@ -3,8 +3,8 @@
  * text via SSE. Body: { content: string, action?: "polish"|"rewrite"|"summarize"|"expand"|"translate" }.
  */
 
-import { getGmlKey, getLLMProvider, getOpenAIKey, getDeepSeekKey } from "@/lib/env";
-import { streamChat } from "@/lib/llm";
+import { getGmlKey, getLLMProvider, getOpenAIKey, getDeepSeekKey } from "@server/env";
+import { streamChat } from "@server/llm";
 import { NextRequest } from "next/server";
 
 const SYSTEM_PROMPTS: Record<string, string> = {

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Providers } from "@/components/Providers";
-import { FirestoreNotesSync } from "@/components/FirestoreNotesSync";
+import { Providers } from "@client/components/Providers";
+import { FirestoreNotesSync } from "@client/components/FirestoreNotesSync";
 import "./globals.css";
-import { cn } from "@/lib/utils";
+import { cn } from "@server/utils";
 
 export const metadata: Metadata = {
   title: "AI 笔记",

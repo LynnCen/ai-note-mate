@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getNotesBackend } from "@/lib/notes-backend";
+import { getNotesRepository } from "@server/notes/repository";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -9,7 +9,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   try {
-    const note = await getNotesBackend().getById(id);
+    const note = await getNotesRepository().getById(id);
     if (note === null) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const updates: { title?: string; content?: string } = {};
     if (typeof body.title === "string") updates.title = body.title;
     if (typeof body.content === "string") updates.content = body.content;
-    const note = await getNotesBackend().update(id, updates);
+    const note = await getNotesRepository().update(id, updates);
     if (note === null) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   try {
-    const deleted = await getNotesBackend().deleteNote(id);
+    const deleted = await getNotesRepository().deleteNote(id);
     if (!deleted) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
