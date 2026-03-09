@@ -52,6 +52,7 @@ export default function NoteDetailPage() {
 
   const editorRef = useRef<NoteEditorHandle>(null);
   const editorWrapperRef = useRef<HTMLDivElement>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const { panelWidth, onDividerMouseDown } = useResizablePanel();
   const [mobileAgentOpen, setMobileAgentOpen] = useState(false);
 
@@ -230,10 +231,15 @@ export default function NoteDetailPage() {
     const range = editorRef.current?.getSelectionRange() ?? null;
     const contentToSend = range ? content.slice(range.start, range.end) : content;
     if (!contentToSend.trim()) return;
+    // Cancel any in-progress AI stream before starting a new one
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     try {
       const res = await fetch("/api/ai/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ content: contentToSend, action }),
       });
       if (!res.ok) {
@@ -272,6 +278,8 @@ export default function NoteDetailPage() {
   );
 
   const handleAiDiscard = useCallback(() => {
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
     setAiStream(null);
     setAiMeta(null);
   }, []);
@@ -464,6 +472,7 @@ export default function NoteDetailPage() {
         stream={aiStream}
         onAccept={handleAiAccept}
         onDiscard={handleAiDiscard}
+        onCancel={() => { aiAbortRef.current?.abort(); aiAbortRef.current = null; }}
       />
 
       {/* Mobile full-screen Agent modal */}

@@ -16,9 +16,11 @@ export interface AiResultModalProps {
   stream: ReadableStream<Uint8Array> | null;
   onAccept: (content: string) => void;
   onDiscard: () => void;
+  /** Optional: called when the user cancels before stream completes (aborts the fetch). */
+  onCancel?: () => void;
 }
 
-export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProps) {
+export function AiResultModal({ stream, onAccept, onDiscard, onCancel }: AiResultModalProps) {
   const [streamedText, setStreamedText] = useState("");
   const [streamDone, setStreamDone] = useState(false);
   const accumulatedRef = useRef("");
@@ -136,7 +138,7 @@ export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProp
   if (stream === null) return null;
 
   return (
-    <Dialog open={true} onOpenChange={(open) => { if (!open) onDiscard(); }}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) { onCancel?.(); onDiscard(); } }}>
       <DialogContent
         showCloseButton={true}
         className="flex max-h-[85vh] max-w-xl flex-col gap-0 p-0"
@@ -166,11 +168,11 @@ export function AiResultModal({ stream, onAccept, onDiscard }: AiResultModalProp
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button type="button" variant="outline" onClick={onDiscard}>
+          <Button type="button" variant="outline" onClick={() => { onCancel?.(); onDiscard(); }}>
             丢弃
           </Button>
-          <Button type="button" onClick={handleAccept}>
-            {streamDone ? "接受" : "接受当前内容"}
+          <Button type="button" onClick={handleAccept} disabled={!streamDone}>
+            接受
           </Button>
         </div>
       </DialogContent>

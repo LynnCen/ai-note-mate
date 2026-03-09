@@ -29,7 +29,7 @@ describe("AiResultModal", () => {
     expect(onDiscard).not.toHaveBeenCalled();
   });
 
-  it("consumes stream, shows content, and onAccept is called with accumulated text when clicking 接受", async () => {
+  it("Accept button is disabled while streaming, enabled after done; calls onAccept with full text", async () => {
     const onAccept = vi.fn();
     const onDiscard = vi.fn();
     const stream = createMockStream([
@@ -41,11 +41,18 @@ describe("AiResultModal", () => {
       <AiResultModal stream={stream} onAccept={onAccept} onDiscard={onDiscard} />
     );
 
+    // Initially disabled while stream is in progress
+    const acceptButton = screen.getByRole("button", { name: /接受/ });
+    expect(acceptButton).toBeDisabled();
+
+    // Wait for stream to complete and content to appear
     await waitFor(() => {
       expect(screen.getByText("hello world")).toBeInTheDocument();
     });
 
-    const acceptButton = screen.getByRole("button", { name: /接受/ });
+    // Enabled after stream done
+    expect(acceptButton).not.toBeDisabled();
+
     fireEvent.click(acceptButton);
     expect(onAccept).toHaveBeenCalledTimes(1);
     expect(onAccept).toHaveBeenCalledWith("hello world");
