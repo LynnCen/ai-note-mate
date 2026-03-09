@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseChunk } from "@/lib/stream-utils";
+import { parseChunk } from "@server/stream-utils";
 
 describe("parseChunk", () => {
   it("extracts content from SSE data line", () => {
