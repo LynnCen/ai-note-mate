@@ -1,24 +1,29 @@
-/** A single step in an Agent turn (rendered in the UI) */
-export interface AgentStep {
-  type: "thought" | "action" | "observation" | "answer" | "error";
-  content: string;
-  toolName?: string;
+/** Client-side Agent message types */
+
+export type AgentEventType =
+  | "content_delta"
+  | "tool_call_start"
+  | "tool_result"
+  | "done"
+  | "error";
+
+export interface AgentEvent {
+  type: AgentEventType;
+  content?: string;     // content_delta text / tool_result content / error message
+  toolName?: string;    // tool_call_start / tool_result
+  toolInput?: string;   // tool_call_start parsed args (for display)
+  callId?: string;      // tool_call_start / tool_result pairing
 }
 
-/** Agent chat message (client-side) */
 export interface AgentMessage {
   id: string;
   role: "user" | "assistant";
-  /** Final answer text (assistant only) */
-  content: string;
-  /** Intermediate steps (assistant only) */
-  steps?: AgentStep[];
+  events: AgentEvent[];   // ordered stream of events for this message
+  fullContent: string;    // accumulated content_delta text (for display + apply-to-editor)
+  isDone: boolean;        // true after "done" event received
   createdAt: string;
 }
 
-/** Conversation session */
 export interface AgentConversation {
-  id: string;
-  noteId: string | null;
   messages: AgentMessage[];
 }
