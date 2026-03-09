@@ -13,7 +13,7 @@ export default defineConfig({
     pool: "threads",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["**/node_modules/**", "**/.git/**", "**/.next/**"],
+    exclude: ["**/node_modules/**", "**/.git/**", "**/.next/**", "**/.worktrees/**"],
   },
   resolve: {
     alias: {
