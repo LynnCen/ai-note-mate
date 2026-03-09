@@ -14,6 +14,8 @@ export interface AgentChatPanelProps {
   onApplyToEditor?: (content: string) => void;
   selectedText?: string;
   onToggleCollapse?: () => void;
+  /** If provided, auto-send this message on first mount */
+  initialPrompt?: string;
 }
 
 export function AgentChatPanel({
@@ -23,6 +25,7 @@ export function AgentChatPanel({
   onApplyToEditor,
   selectedText,
   onToggleCollapse,
+  initialPrompt,
 }: AgentChatPanelProps) {
   const { notes } = useNotesStore();
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
@@ -46,7 +49,10 @@ export function AgentChatPanel({
     };
   }, []);
 
-  // Fetch available providers on mount
+  // Track whether the initial prompt has been sent
+  const initialPromptSentRef = useRef(false);
+
+  // Fetch available providers on mount, then auto-send initialPrompt if provided
   useEffect(() => {
     fetch("/api/ai/providers")
       .then((r) => r.json())
@@ -54,7 +60,17 @@ export function AgentChatPanel({
         setAvailableModels(data.providers);
         if (data.providers.length > 0) setSelectedModel(data.providers[0]);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (initialPrompt && !initialPromptSentRef.current) {
+          initialPromptSentRef.current = true;
+          // Small delay so the panel is fully rendered
+          setTimeout(() => {
+            sendMessage(initialPrompt, []);
+          }, 300);
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stopStreaming = useCallback(() => {

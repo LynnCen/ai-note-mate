@@ -64,6 +64,21 @@ export default function NoteDetailPage() {
   });
   const [selectedTextForAgent, setSelectedTextForAgent] = useState("");
 
+  // Read the initial Agent prompt injected from the home page, then clear it
+  const [initialAgentPrompt] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    const key = `agent-prompt:${id}`;
+    const val = sessionStorage.getItem(key) ?? "";
+    if (val) {
+      sessionStorage.removeItem(key);
+      // Auto-expand the agent panel if it was collapsed
+      if (localStorage.getItem("agent-panel-collapsed") === "true") {
+        localStorage.setItem("agent-panel-collapsed", "false");
+      }
+    }
+    return val;
+  });
+
   const MIN_HEIGHT = 200;
   const { height: editorHeight, onHandleMouseDown: onHeightDragStart } = useResizableHeight();
 
@@ -539,6 +554,7 @@ export default function NoteDetailPage() {
             noteTitle={title}
             noteContent={content}
             selectedText={selectedTextForAgent}
+            initialPrompt={initialAgentPrompt || undefined}
             onApplyToEditor={(agentContent) => {
               setContent((prev) => prev + "\n\n" + agentContent);
               setIsDirty(true);
