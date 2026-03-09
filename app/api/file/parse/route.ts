@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import mammoth from "mammoth";
+
+// Force this route to run in the Node.js runtime (not edge),
+// so Buffer and Node-only libraries are available if needed.
+export const runtime = "nodejs";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_CHARS = 20000;
@@ -25,15 +27,15 @@ export async function POST(req: NextRequest) {
   let text = "";
 
   try {
-    if (ext === "pdf") {
-      const result = await pdfParse(buffer);
-      text = result.text;
-    } else if (ext === "docx") {
+    if (ext === "docx") {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else if (ext === "txt" || ext === "md") {
       text = buffer.toString("utf-8");
     } else {
+      // For now we do not support PDF or other binary formats here to avoid
+      // heavy browser polyfills (DOMMatrix, Path2D, etc). The Agent tools
+      // can handle non-text inputs in a more controlled environment.
       return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
     }
   } catch (err) {
