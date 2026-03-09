@@ -1,20 +1,20 @@
 /**
- * ReAct conversation runner.
+ * Tool Calling Agent loop.
  *
  * Flow per turn:
- *  1. Build messages (system prompt + history + new user msg)
- *  2. Call LLM → collect full response → parse into ReAct steps
- *  3. If Action found: execute tool → inject Observation → goto 2
- *  4. If Answer found: yield answer event and return
- *  5. Max 5 iterations guard → yield error event
+ *  1. Build messages with system prompt + conversation history
+ *  2. Call LLM with tool definitions via chatWithToolsStream
+ *  3. Stream content deltas → yield SSE content_delta events immediately (no buffering)
+ *  4. If finish_reason=tool_calls → execute tools → append tool messages → goto 2
+ *  5. If finish_reason=stop → yield done event and return
+ *  6. Max 5 iterations guard → yield error event
  *
- * Each step is yielded as a Server-Sent Event so the UI can render
- * thought / action / observation in real time.
+ * AbortSignal is propagated all the way to the LLM fetch call, enabling
+ * client-initiated cancellation to cleanly stop the loop.
  */
-import { streamChat } from "@server/llm";
-import { parseChunk } from "@server/stream-utils";
-import type { ChatMessage } from "@server/llm/types";
-import { buildReActSystemPrompt, parseReActResponse, hasAnswer } from "./react-engine";
+import { chatWithToolsStream } from "@server/llm";
+import { extractToolCalls } from "@server/llm/providers/tool-calling";
+import type { ChatMessage, ProviderStreamEvent } from "@server/llm/types";
 import { executeAgentTool, AGENT_TOOLS } from "./tool-registry";
 import type { AgentContext } from "./types";
 import type { Note } from "@/types/note";
@@ -23,65 +23,42 @@ export interface ConversationRequest {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   context: AgentContext;
   allNotes: Note[];
+  signal?: AbortSignal;
 }
 
 const MAX_ITERATIONS = 5;
 
-/**
- * Collect all text chunks from the LLM ReadableStream.
- * The stream emits "data: {\"content\":\"...\"}\n\n" SSE lines.
- */
-async function collectStreamText(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
+const SYSTEM_PROMPT = `你是一个文档助手 Agent，帮助用户管理和编辑笔记。
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop() ?? "";
-      for (const part of parts) {
-        const chunk = parseChunk(part);
-        if (chunk) text += chunk;
-      }
-    }
-    if (done) {
-      // flush remaining buffer
-      if (buffer.trim()) {
-        const chunk = parseChunk(buffer);
-        if (chunk) text += chunk;
-      }
-      break;
-    }
-  }
+你有以下工具可以使用：
+- read_note：读取当前打开的笔记的完整标题和正文内容
+- search_notes：在用户所有笔记中搜索
+- draft_document：根据模板生成文档草稿（meeting/tech/weekly）
 
-  return text;
-}
+规则：
+1. 遇到需要查询信息的问题，先调用相关工具获取信息，再基于信息回答。
+2. 回答要简洁、具体、有帮助。
+3. 如果用户提问与当前笔记内容相关，优先使用 read_note。
+4. 用中文回答。`;
 
 /**
- * Async generator that runs the ReAct loop and yields SSE lines.
+ * Async generator that runs the Tool Calling loop and yields SSE strings.
  *
  * Each yielded string is a complete SSE block, e.g.:
- *   "event: thought\ndata: {\"content\":\"...\"}\n\n"
+ *   "event: content_delta\ndata: {\"content\":\"...\"}\n\n"
  */
-export async function* runReActLoop(
+export async function* runToolCallingLoop(
   req: ConversationRequest
 ): AsyncGenerator<string> {
-  const { messages, context, allNotes } = req;
+  const { messages, context, allNotes, signal } = req;
 
   const noteContext =
     context.noteContent !== null
       ? { title: context.noteTitle ?? "", content: context.noteContent }
       : null;
 
-  const systemPrompt = buildReActSystemPrompt(AGENT_TOOLS);
-
-  // Build the LLM message history
   const history: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
+    { role: "system", content: SYSTEM_PROMPT },
     ...messages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
@@ -89,73 +66,89 @@ export async function* runReActLoop(
   ];
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-    // Call LLM and collect full response
-    const stream = await streamChat(history, undefined);
-    const llmOutput = await collectStreamText(stream);
+    if (signal?.aborted) return;
 
-    if (!llmOutput.trim()) {
-      yield sseEvent("error", { content: "LLM 返回空响应，请重试。" });
-      return;
-    }
+    const collectedEvents: ProviderStreamEvent[] = [];
+    let assistantContent = "";
 
-    // Parse the LLM response into ReAct steps
-    const steps = parseReActResponse(llmOutput);
+    for await (const event of chatWithToolsStream(history, AGENT_TOOLS, signal)) {
+      if (signal?.aborted) return;
 
-    // Track if this iteration triggered any tool call
-    let calledTool = false;
+      collectedEvents.push(event);
 
-    for (const step of steps) {
-      if (step.type === "thought") {
-        yield sseEvent("thought", { content: step.content });
-      } else if (step.type === "action") {
-        yield sseEvent("action", {
-          toolName: step.toolName,
-          content: step.toolInput,
-        });
+      switch (event.type) {
+        case "content_delta":
+          assistantContent += event.content;
+          yield sseEvent("content_delta", { content: event.content });
+          break;
 
-        // Execute the tool
-        const observation = await executeAgentTool(
-          step.toolName,
-          step.toolInput,
-          noteContext,
-          allNotes
-        );
+        case "tool_call_start":
+          yield sseEvent("tool_call_start", {
+            callId: event.callId,
+            toolName: event.toolName,
+          });
+          break;
 
-        yield sseEvent("observation", {
-          toolName: step.toolName,
-          content: observation,
-        });
+        case "error":
+          yield sseEvent("error", { message: event.message });
+          return;
 
-        // Inject assistant output + observation back into history
-        history.push({ role: "assistant", content: llmOutput });
-        history.push({
-          role: "user",
-          content: `<Observation tool="${step.toolName}">\n${observation}\n</Observation>\n\n请根据以上信息继续。`,
-        });
-
-        calledTool = true;
-        // Only process the first action per iteration; re-enter loop
-        break;
-      } else if (step.type === "answer") {
-        yield sseEvent("answer", { content: step.content });
-        return;
+        // tool_call_args_delta and finish handled after loop
+        default:
+          break;
       }
     }
 
-    // If LLM gave only thoughts and no action / answer, treat as final answer
-    if (!calledTool && !hasAnswer(steps)) {
-      const thoughtContent = steps
-        .filter((s) => s.type === "thought")
-        .map((s) => s.content)
-        .join("\n\n");
-      yield sseEvent("answer", {
-        content: thoughtContent || llmOutput,
-      });
+    if (signal?.aborted) return;
+
+    const finishEvent = collectedEvents.find((e) => e.type === "finish");
+    const finishReason =
+      finishEvent?.type === "finish" ? finishEvent.reason : "stop";
+
+    if (finishReason === "stop" || finishReason === "length") {
+      yield sseEvent("done", {});
       return;
     }
+
+    // Tool calls path
+    const toolCalls = extractToolCalls(collectedEvents);
+
+    if (toolCalls.length === 0) {
+      yield sseEvent("done", {});
+      return;
+    }
+
+    // Append assistant turn to history
+    history.push({ role: "assistant", content: assistantContent });
+
+    // Execute each tool and append results
+    for (const tc of toolCalls) {
+      if (signal?.aborted) return;
+
+      const toolResult = await executeAgentTool(
+        tc.toolName,
+        tc.argsJson,
+        noteContext,
+        allNotes
+      );
+
+      yield sseEvent("tool_result", {
+        callId: tc.callId,
+        toolName: tc.toolName,
+        content: toolResult,
+      });
+
+      history.push({
+        role: "tool",
+        content: toolResult,
+        tool_call_id: tc.callId,
+        name: tc.toolName,
+      });
+    }
+    // Continue loop with updated history
   }
 
-  yield sseEvent("error", { content: "Agent 达到最大迭代次数，请重新提问。" });
+  yield sseEvent("error", { message: "Agent 达到最大迭代次数，请重新提问。" });
 }
 
 function sseEvent(event: string, data: Record<string, string>): string {

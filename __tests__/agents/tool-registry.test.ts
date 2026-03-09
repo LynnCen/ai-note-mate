@@ -15,9 +15,18 @@ const notes: Note[] = [
 
 describe("AGENT_TOOLS", () => {
   it("exports read_note, search_notes, draft_document", () => {
-    expect(AGENT_TOOLS.map((t) => t.name)).toEqual(
+    expect(AGENT_TOOLS.map((t) => t.function.name)).toEqual(
       expect.arrayContaining(["read_note", "search_notes", "draft_document"])
     );
+  });
+
+  it("uses OpenAI function calling format", () => {
+    for (const tool of AGENT_TOOLS) {
+      expect(tool.type).toBe("function");
+      expect(typeof tool.function.name).toBe("string");
+      expect(typeof tool.function.description).toBe("string");
+      expect(tool.function.parameters.type).toBe("object");
+    }
   });
 });
 

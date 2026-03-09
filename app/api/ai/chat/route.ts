@@ -1,63 +1,63 @@
-/**
- * POST /api/ai/chat — ReAct Agent 多轮对话
- *
- * 请求体：
- * {
- *   messages: Array<{ role: "user"|"assistant", content: string }>,
- *   noteId?: string,
- *   noteContent?: string,
- *   noteTitle?: string,
- *   allNotes?: Note[]
- * }
- *
- * 响应：SSE 流，每条 event 为 thought|action|observation|answer|error
- */
 import { NextRequest } from "next/server";
-import { runReActLoop } from "@agents/conversation";
+import { runToolCallingLoop } from "@agents/conversation";
 import type { AgentContext } from "@agents/types";
-import type { Note } from "@/types/note";
 
 export async function POST(request: NextRequest) {
+  let body: {
+    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    noteId: string | null;
+    noteTitle: string;
+    noteContent: string;
+    allNotes: Array<{ id: string; title: string; content: string; createdAt: string; updatedAt: string }>;
+  };
+
   try {
-    const body = await request.json();
-
-    const messages = Array.isArray(body.messages) ? body.messages : [];
-    if (!messages.length) {
-      return Response.json({ error: "messages 数组不能为空" }, { status: 400 });
-    }
-
-    const context: AgentContext = {
-      noteId: body.noteId ?? null,
-      noteContent: typeof body.noteContent === "string" ? body.noteContent : null,
-      noteTitle: typeof body.noteTitle === "string" ? body.noteTitle : null,
-    };
-
-    const allNotes: Note[] = Array.isArray(body.allNotes) ? body.allNotes : [];
-
-    const generator = runReActLoop({ messages, context, allNotes });
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of generator) {
-            console.log("chunk", chunk);
-            controller.enqueue(new TextEncoder().encode(chunk));
-          }
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-store",
-        Connection: "keep-alive",
-      },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "未知错误";
-    return Response.json({ error: message }, { status: 500 });
+    body = await request.json();
+  } catch {
+    return new Response("Invalid JSON", { status: 400 });
   }
+
+  const { messages, noteId, noteTitle, noteContent, allNotes } = body;
+
+  const context: AgentContext = {
+    noteId: noteId ?? null,
+    noteContent: noteContent ?? null,
+    noteTitle: noteTitle ?? null,
+  };
+
+  const generator = runToolCallingLoop({
+    messages,
+    context,
+    allNotes,
+    signal: request.signal,
+  });
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of generator) {
+          if (request.signal.aborted) break;
+          controller.enqueue(new TextEncoder().encode(chunk));
+        }
+      } catch (err) {
+        if (!request.signal.aborted) {
+          const errorSse = `event: error\ndata: ${JSON.stringify({ message: String(err) })}\n\n`;
+          controller.enqueue(new TextEncoder().encode(errorSse));
+        }
+      } finally {
+        controller.close();
+      }
+    },
+    cancel() {
+      // client disconnected — generator will stop on next signal check
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }

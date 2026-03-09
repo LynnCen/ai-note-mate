@@ -1,30 +1,62 @@
 import { readCurrentNote, searchNotes, draftDocument } from "./document-agent/tools";
 import { DRAFT_TEMPLATES } from "./document-agent/prompts";
+import type { ToolDefinition } from "@server/llm/types";
 import type { Note } from "@/types/note";
 
-export interface AgentTool {
-  name: string;
-  description: string;
-  parametersSchema: string; // JSON Schema string for LLM prompt
-}
+export type { ToolDefinition };
 
-export const AGENT_TOOLS: AgentTool[] = [
+/** Tools available to the Document Agent — OpenAI function calling format */
+export const AGENT_TOOLS: ToolDefinition[] = [
   {
-    name: "read_note",
-    description: "读取当前打开的笔记的完整标题和正文内容。无需参数。",
-    parametersSchema: "{}",
+    type: "function",
+    function: {
+      name: "read_note",
+      description: "读取当前打开的笔记的完整标题和正文内容。无需参数，直接调用。",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
   },
   {
-    name: "search_notes",
-    description:
-      "在用户所有笔记中关键词搜索，返回最相关的前 3 篇。参数：{ query: string }",
-    parametersSchema: '{"query":"string"}',
+    type: "function",
+    function: {
+      name: "search_notes",
+      description: "在用户所有笔记中进行关键词搜索，返回最相关的前 3 篇。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "搜索关键词",
+          },
+        },
+        required: ["query"],
+      },
+    },
   },
   {
-    name: "draft_document",
-    description:
-      "根据模板生成文档草稿。参数：{ template: 'meeting'|'tech'|'weekly', title: string }",
-    parametersSchema: '{"template":"meeting|tech|weekly","title":"string"}',
+    type: "function",
+    function: {
+      name: "draft_document",
+      description: "根据指定模板生成文档草稿，支持会议纪要、技术文档、周报。",
+      parameters: {
+        type: "object",
+        properties: {
+          template: {
+            type: "string",
+            enum: ["meeting", "tech", "weekly"],
+            description: "模板类型",
+          },
+          title: {
+            type: "string",
+            description: "文档标题",
+          },
+        },
+        required: ["template", "title"],
+      },
+    },
   },
 ];
 
@@ -35,15 +67,15 @@ type NoteContext = { title: string; content: string } | null;
  */
 export async function executeAgentTool(
   toolName: string,
-  toolInputJson: string,
+  toolArgsJson: string,
   noteContext: NoteContext,
   allNotes: Note[]
 ): Promise<string> {
-  let input: Record<string, string> = {};
+  let args: Record<string, string> = {};
   try {
-    input = JSON.parse(toolInputJson);
+    args = JSON.parse(toolArgsJson) as Record<string, string>;
   } catch {
-    // ignore parse errors, treat as empty input
+    // treat as empty args
   }
 
   switch (toolName) {
@@ -52,13 +84,13 @@ export async function executeAgentTool(
       return result.content;
     }
     case "search_notes": {
-      const result = searchNotes(input.query ?? "", allNotes);
+      const result = searchNotes(args.query ?? "", allNotes);
       return result.content;
     }
     case "draft_document": {
       const result = draftDocument(
-        input.template ?? "tech",
-        input.title ?? "",
+        args.template ?? "tech",
+        args.title ?? "",
         DRAFT_TEMPLATES
       );
       return result.content;
