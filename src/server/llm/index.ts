@@ -3,7 +3,7 @@
  * Server-side only.
  */
 
-import { getLLMProvider, getDeepSeekKey, getOpenAIKey } from "@server/env";
+import { getLLMProvider, getDeepSeekKey, getOpenAIKey, getGmlKey } from "@server/env";
 import { streamChatDeepSeek } from "./providers/deepseek";
 import { streamChatGml } from "./providers/gml";
 import { streamChatOpenAI } from "./providers/openai";
@@ -69,7 +69,11 @@ export async function* chatWithToolsStream(
     baseUrl = "https://api.deepseek.com/v1";
     apiKey = getDeepSeekKey() ?? "";
     model = "deepseek-chat";
-  } else {
+  } else if (normalized === "gml") {
+    baseUrl = "https://open.bigmodel.cn/api/paas/v4";
+    apiKey = getGmlKey() ?? "";
+    model = "glm-4-flash";
+  } else  {
     // openai (default) and others
     baseUrl = "https://api.openai.com/v1";
     apiKey = getOpenAIKey() ?? "";
