@@ -2,12 +2,14 @@
 
 import { useRef, useState, useCallback } from "react";
 import { Button } from "@client/components/ui/button";
-import { Square, Send, Plus, X, FileText } from "lucide-react";
+import { Square, Send, Plus, X, FileText, Loader2 } from "lucide-react";
 
 export interface ContextChip {
   type: "note" | "file";
   label: string;
   content?: string;
+  /** true while file content is being read */
+  loading?: boolean;
 }
 
 export interface AgentInputProps {
@@ -55,30 +57,64 @@ export function AgentInput({
     : { type: "note", label: "全文", content: noteContent };
 
   const [chips, setChips] = useState<ContextChip[]>([defaultChip]);
-  const [uploading, setUploading] = useState(false);
 
   function removeChip(idx: number) {
     setChips((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
-    try {
+    const filename = file.name;
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const chipKey = `${filename}-${Date.now()}`;
+
+    // Show chip immediately with loading indicator
+    setChips((prev) => [...prev, { type: "file", label: filename, loading: true }]);
+
+    if (ext === "txt" || ext === "md") {
+      // Read client-side — instant, no API needed
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = typeof reader.result === "string" ? reader.result : "";
+        setChips((prev) =>
+          prev.map((c) =>
+            c.type === "file" && c.label === filename && c.loading
+              ? { ...c, content: text, loading: false }
+              : c
+          )
+        );
+      };
+      reader.readAsText(file);
+    } else if (ext === "pdf" || ext === "docx") {
+      // Parse via API in background — chip already visible
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/file/parse", { method: "POST", body: formData });
-      if (!res.ok) return;
-      const { text: fileText, filename } = (await res.json()) as {
-        text: string;
-        filename: string;
-      };
-      setChips((prev) => [...prev, { type: "file", label: filename, content: fileText }]);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      fetch("/api/file/parse", { method: "POST", body: formData })
+        .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+        .then(({ text: fileText }: { text: string; filename: string }) => {
+          setChips((prev) =>
+            prev.map((c) =>
+              c.type === "file" && c.label === filename && c.loading
+                ? { ...c, content: fileText, loading: false }
+                : c
+            )
+          );
+        })
+        .catch(() => {
+          // Keep chip but mark as unreadable
+          setChips((prev) =>
+            prev.map((c) =>
+              c.type === "file" && c.label === filename && c.loading
+                ? { ...c, content: "[无法解析文件内容]", loading: false }
+                : c
+            )
+          );
+        });
     }
+
+    void chipKey; // used for closure identity
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const handleSend = useCallback(() => {
@@ -104,17 +140,27 @@ export function AgentInput({
           {chips.map((chip, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground"
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                chip.loading
+                  ? "border-border/50 bg-muted/30 text-muted-foreground/60"
+                  : "border-border bg-muted/60 text-muted-foreground"
+              }`}
             >
-              <FileText className="h-3 w-3 shrink-0" />
-              <span className="max-w-[120px] truncate">{chip.label}</span>
-              <button
-                type="button"
-                onClick={() => removeChip(i)}
-                className="ml-0.5 rounded-full hover:text-foreground transition-colors"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              {chip.loading ? (
+                <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+              ) : (
+                <FileText className="h-3 w-3 shrink-0" />
+              )}
+              <span className="max-w-[140px] truncate">{chip.label}</span>
+              {!chip.loading && (
+                <button
+                  type="button"
+                  onClick={() => removeChip(i)}
+                  className="ml-0.5 rounded-full hover:text-foreground transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </span>
           ))}
         </div>
@@ -138,10 +184,9 @@ export function AgentInput({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
-            title="上传文件"
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title="附加文件（PDF / DOCX / TXT / MD）"
           >
             <Plus className="h-4 w-4" />
           </button>

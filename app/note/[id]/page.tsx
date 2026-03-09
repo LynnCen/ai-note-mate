@@ -473,28 +473,22 @@ export default function NoteDetailPage() {
           />
 
           {editorMode === "edit" ? (
-            <div>
-              <div
-                ref={editorWrapperRef}
-                style={{ height: editorHeight, minHeight: MIN_HEIGHT }}
-                className="overflow-hidden"
-              >
-                <NoteEditor
-                  ref={editorRef}
-                  value={content}
-                  onChange={handleContentChange}
-                  onSelectionChange={handleSelectionChange}
-                  placeholder="写点什么…"
-                  className="h-full"
-                />
-              </div>
+            <div ref={editorWrapperRef}>
+              <NoteEditor
+                ref={editorRef}
+                value={content}
+                onChange={handleContentChange}
+                onSelectionChange={handleSelectionChange}
+                placeholder="写点什么…"
+                editorHeight={editorHeight}
+              />
               {/* Drag handle */}
               <div
                 onMouseDown={onHeightDragStart}
-                className="flex h-3 cursor-row-resize items-center justify-center hover:bg-primary/20 transition-colors select-none"
+                className="flex h-3 cursor-row-resize items-center justify-center hover:bg-primary/20 transition-colors select-none mt-1"
                 title="拖拽调整编辑器高度"
               >
-                <div className="h-0.5 w-12 rounded-full bg-border" />
+                <div className="h-0.5 w-16 rounded-full bg-border group-hover:bg-primary/60 transition-colors" />
               </div>
             </div>
           ) : (

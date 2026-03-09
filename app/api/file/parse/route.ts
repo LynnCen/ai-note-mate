@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import mammoth from "mammoth";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -25,8 +26,7 @@ export async function POST(req: NextRequest) {
 
   try {
     if (ext === "pdf") {
-      const parser = new PDFParse({ data: buffer });
-      const result = await parser.getText();
+      const result = await pdfParse(buffer);
       text = result.text;
     } else if (ext === "docx") {
       const result = await mammoth.extractRawText({ buffer });

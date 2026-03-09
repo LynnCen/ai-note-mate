@@ -13,6 +13,8 @@ export interface NoteEditorProps {
   onSelectionChange?: () => void;
   placeholder?: string;
   className?: string;
+  /** Dynamic editor height in px, forwarded to MDEditor */
+  editorHeight?: number;
 }
 
 export interface NoteEditorHandle {
@@ -33,6 +35,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
     onSelectionChange,
     placeholder = "写点什么…",
     className = "",
+    editorHeight,
   },
   ref
 ) {
@@ -107,7 +110,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
         ref={mdEditorRef as React.RefObject<{ textarea?: HTMLTextAreaElement }>}
         value={localValue}
         onChange={handleChange}
-        height={200}
+        height={editorHeight ?? 400}
         preview="edit"
         visibleDragbar={false}
         textareaProps={{
