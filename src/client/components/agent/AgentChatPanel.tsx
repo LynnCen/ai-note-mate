@@ -226,24 +226,14 @@ export function AgentChatPanel({
             <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {streaming && (
-            <button
-              type="button"
-              onClick={stopStreaming}
-              className="text-xs text-destructive hover:text-destructive/80 transition-colors"
-            >
-              停止
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setMessages([])}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            清空
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setMessages([])}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          disabled={streaming}
+        >
+          清空
+        </button>
       </div>
 
       {/* Message list */}
@@ -279,6 +269,20 @@ export function AgentChatPanel({
           ))
         )}
       </div>
+
+      {/* Stop-generating bar — shown above input when streaming */}
+      {streaming && (
+        <div className="shrink-0 flex items-center justify-center border-t border-border bg-muted/50 px-4 py-2">
+          <button
+            type="button"
+            onClick={stopStreaming}
+            className="flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1.5 text-xs font-medium text-destructive shadow-sm hover:bg-destructive/5 transition-colors"
+          >
+            <span className="inline-block h-2 w-2 rounded-sm bg-destructive" />
+            停止生成
+          </button>
+        </div>
+      )}
 
       {/* Input */}
       <div className="shrink-0">
