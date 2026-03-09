@@ -57,9 +57,10 @@ export async function streamChat(
 export async function* chatWithToolsStream(
   messages: ChatMessage[],
   tools: ToolDefinition[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  providerOverride?: string
 ): AsyncGenerator<ProviderStreamEvent> {
-  const provider = getLLMProvider();
+  const provider = providerOverride ?? getLLMProvider();
   const normalized = (provider?.toLowerCase() || "openai") as string;
 
   let baseUrl: string;

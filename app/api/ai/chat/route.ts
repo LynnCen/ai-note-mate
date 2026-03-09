@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     noteTitle: string;
     noteContent: string;
     allNotes: Array<{ id: string; title: string; content: string; createdAt: string; updatedAt: string }>;
+    provider?: string;
   };
 
   try {
@@ -17,12 +18,13 @@ export async function POST(request: NextRequest) {
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  const { messages, noteId, noteTitle, noteContent, allNotes } = body;
+  const { messages, noteId, noteTitle, noteContent, allNotes, provider } = body;
 
   const context: AgentContext = {
     noteId: noteId ?? null,
     noteContent: noteContent ?? null,
     noteTitle: noteTitle ?? null,
+    providerOverride: provider,
   };
 
   const generator = runToolCallingLoop({

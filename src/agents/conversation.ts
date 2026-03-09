@@ -71,7 +71,7 @@ export async function* runToolCallingLoop(
     const collectedEvents: ProviderStreamEvent[] = [];
     let assistantContent = "";
 
-    for await (const event of chatWithToolsStream(history, AGENT_TOOLS, signal)) {
+    for await (const event of chatWithToolsStream(history, AGENT_TOOLS, signal, context.providerOverride)) {
       if (signal?.aborted) return;
 
       collectedEvents.push(event);

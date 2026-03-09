@@ -6,4 +6,5 @@ export interface AgentContext {
   noteId: string | null;
   noteContent: string | null;
   noteTitle: string | null;
+  providerOverride?: string;
 }
