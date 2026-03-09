@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotesStore } from "@client/stores/useNotesStore";
 import { AgentMessage } from "./AgentMessage";
-import { AgentInput } from "./AgentInput";
+import { AgentInput, type ContextChip } from "./AgentInput";
 import type { AgentMessage as AgentMessageType, AgentEvent } from "@/types/agent";
 
 export interface AgentChatPanelProps {
@@ -11,6 +11,7 @@ export interface AgentChatPanelProps {
   noteTitle: string;
   noteContent: string;
   onApplyToEditor?: (content: string) => void;
+  selectedText?: string;
 }
 
 export function AgentChatPanel({
@@ -18,12 +19,16 @@ export function AgentChatPanel({
   noteTitle,
   noteContent,
   onApplyToEditor,
+  selectedText,
 }: AgentChatPanelProps) {
   const { notes } = useNotesStore();
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string | undefined>();
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -38,6 +43,17 @@ export function AgentChatPanel({
     };
   }, []);
 
+  // Fetch available providers on mount
+  useEffect(() => {
+    fetch("/api/ai/providers")
+      .then((r) => r.json())
+      .then((data: { providers: string[] }) => {
+        setAvailableModels(data.providers);
+        if (data.providers.length > 0) setSelectedModel(data.providers[0]);
+      })
+      .catch(() => {});
+  }, []);
+
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
@@ -45,7 +61,7 @@ export function AgentChatPanel({
   }, []);
 
   const sendMessage = useCallback(
-    async (userText: string) => {
+    async (userText: string, contextChips: ContextChip[]) => {
       // Cancel any in-progress request before starting a new one
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -89,6 +105,10 @@ export function AgentChatPanel({
             noteTitle,
             noteContent,
             allNotes: notes.filter((n) => !n.id.startsWith("local-")),
+            provider: selectedModel,
+            attachments: contextChips
+              .filter((c) => c.type === "file")
+              .map((c) => ({ filename: c.label, content: c.content ?? "" })),
           }),
         });
 
@@ -137,7 +157,7 @@ export function AgentChatPanel({
         setStreaming(false);
       }
     },
-    [messages, noteId, noteTitle, noteContent, notes]
+    [messages, noteId, noteTitle, noteContent, notes, selectedModel]
   );
 
   function processSSELine(
@@ -270,23 +290,18 @@ export function AgentChatPanel({
         )}
       </div>
 
-      {/* Stop-generating bar — shown above input when streaming */}
-      {streaming && (
-        <div className="shrink-0 flex items-center justify-center border-t border-border bg-muted/50 px-4 py-2">
-          <button
-            type="button"
-            onClick={stopStreaming}
-            className="flex items-center gap-1.5 rounded-md border border-destructive/50 bg-background px-3 py-1.5 text-xs font-medium text-destructive shadow-sm hover:bg-destructive/5 transition-colors"
-          >
-            <span className="inline-block h-2 w-2 rounded-sm bg-destructive" />
-            停止生成
-          </button>
-        </div>
-      )}
-
       {/* Input */}
       <div className="shrink-0">
-        <AgentInput onSend={sendMessage} disabled={streaming} />
+        <AgentInput
+          onSend={sendMessage}
+          onStop={stopStreaming}
+          streaming={streaming}
+          selectedText={selectedText}
+          noteContent={noteContent}
+          availableModels={availableModels}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+        />
       </div>
     </div>
   );
