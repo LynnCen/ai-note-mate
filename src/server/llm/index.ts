@@ -3,18 +3,26 @@
  * Server-side only.
  */
 
-import { getLLMProvider } from "@server/env";
+import { getLLMProvider, getDeepSeekKey, getOpenAIKey } from "@server/env";
 import { streamChatDeepSeek } from "./providers/deepseek";
 import { streamChatGml } from "./providers/gml";
 import { streamChatOpenAI } from "./providers/openai";
-import type { ChatMessage, StreamOptions } from "./types";
+import {
+  chatWithToolsStream as chatWithToolsStreamImpl,
+} from "./providers/tool-calling";
+import type { ChatMessage, StreamOptions, ToolDefinition, ProviderStreamEvent } from "./types";
 
-export type { ChatMessage, ChatRole, StreamOptions } from "./types";
+export type {
+  ChatMessage,
+  ChatRole,
+  StreamOptions,
+  ToolDefinition,
+  ProviderStreamEvent,
+} from "./types";
 
 /**
  * Stream chat completion using the configured LLM provider (LLM_PROVIDER).
- * Returns a ReadableStream<Uint8Array> that emits SSE "data: {...}\n\n" lines
- * so the route can respond with Content-Type: text/event-stream.
+ * Returns a ReadableStream<Uint8Array> that emits SSE "data: {...}\n\n" lines.
  * Defaults to openai when LLM_PROVIDER is not set.
  *
  * @throws if the selected provider's API key is not set
@@ -36,9 +44,42 @@ export async function streamChat(
     return streamChatGml(messages, options);
   }
 
-  if (normalized === "groq") {
-    throw new Error("LLM_PROVIDER=groq is not implemented yet");
+  throw new Error(`Unsupported LLM_PROVIDER: ${provider}`);
+}
+
+/**
+ * Tool calling streaming chat using the configured LLM provider.
+ * Yields ProviderStreamEvent objects for real-time processing.
+ * Supports AbortSignal for cancellation.
+ * Defaults to openai when LLM_PROVIDER is not set.
+ */
+export async function* chatWithToolsStream(
+  messages: ChatMessage[],
+  tools: ToolDefinition[],
+  signal?: AbortSignal
+): AsyncGenerator<ProviderStreamEvent> {
+  const provider = getLLMProvider();
+  const normalized = (provider?.toLowerCase() || "openai") as string;
+
+  let baseUrl: string;
+  let apiKey: string;
+  let model: string;
+
+  if (normalized === "deepseek") {
+    baseUrl = "https://api.deepseek.com/v1";
+    apiKey = getDeepSeekKey() ?? "";
+    model = "deepseek-chat";
+  } else {
+    // openai (default) and others
+    baseUrl = "https://api.openai.com/v1";
+    apiKey = getOpenAIKey() ?? "";
+    model = "gpt-4o-mini";
   }
 
-  throw new Error(`Unsupported LLM_PROVIDER: ${provider}`);
+  if (!apiKey) {
+    yield { type: "error", message: `API key not set for provider: ${normalized}` };
+    return;
+  }
+
+  yield* chatWithToolsStreamImpl(baseUrl, apiKey, model, messages, tools, signal);
 }
