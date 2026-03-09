@@ -1,7 +1,7 @@
 "use client";
 
+import { AgentEventCard } from "./AgentEventCard";
 import type { AgentMessage as AgentMessageType } from "@/types/agent";
-import { AgentStepCard } from "./AgentStepCard";
 
 export interface AgentMessageProps {
   message: AgentMessageType;
@@ -9,60 +9,60 @@ export interface AgentMessageProps {
 }
 
 export function AgentMessage({ message, onApplyToEditor }: AgentMessageProps) {
-  const isUser = message.role === "user";
-
-  if (isUser) {
+  if (message.role === "user") {
     return (
-      <div className="flex justify-end mb-3">
-        <div className="max-w-[85%] rounded-lg bg-foreground px-3 py-2 text-sm text-background">
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl bg-primary px-3 py-2 text-sm text-primary-foreground">
+          {message.fullContent}
         </div>
       </div>
     );
   }
 
-  // Assistant: render step cards (thought/action/observation) + answer
-  const steps = message.steps ?? [];
-  const hasSteps = steps.length > 0;
-  const hasContent = !!message.content;
+  // Assistant message
+  const hasError = message.events.some((e) => e.type === "error");
+  const isStreaming = !message.isDone;
 
   return (
-    <div className="mb-4 space-y-1.5">
-      {/* Intermediate reasoning steps */}
-      {hasSteps && (
-        <div className="space-y-1">
-          {steps.map((step, i) => (
-            <AgentStepCard
-              key={i}
-              step={step}
-              onApplyToEditor={
-                step.type === "answer" ? onApplyToEditor : undefined
-              }
-            />
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col gap-1">
+      {/* Tool call / result / error event cards */}
+      {message.events
+        .filter((e) => e.type !== "content_delta" && e.type !== "done")
+        .map((event, i) => (
+          <AgentEventCard
+            key={i}
+            event={event}
+            onApplyToEditor={onApplyToEditor}
+          />
+        ))}
 
-      {/* Final answer content (when streamed as plain content) */}
-      {hasContent && !steps.some((s) => s.type === "answer") && (
-        <div className="rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground">
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
-          {onApplyToEditor && (
+      {/* Flowing content text */}
+      {message.fullContent && (
+        <div className="rounded-2xl bg-muted px-3 py-2 text-sm text-foreground">
+          <p className="whitespace-pre-wrap">{message.fullContent}</p>
+
+          {/* Streaming cursor */}
+          {isStreaming && !hasError && (
+            <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse rounded-full bg-foreground/60 align-middle" />
+          )}
+
+          {/* Apply to editor — only when done and no error */}
+          {message.isDone && !hasError && onApplyToEditor && (
             <button
               type="button"
-              onClick={() => onApplyToEditor(message.content)}
-              className="mt-2 text-xs font-medium text-primary hover:underline"
+              onClick={() => onApplyToEditor(message.fullContent)}
+              className="mt-2 block rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground hover:opacity-90"
             >
-              应用到编辑器 →
+              应用到编辑器
             </button>
           )}
         </div>
       )}
 
-      {/* Streaming placeholder when nothing yet */}
-      {!hasSteps && !hasContent && (
-        <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground animate-pulse">
-          思考中…
+      {/* Empty streaming placeholder (no content yet) */}
+      {!message.fullContent && isStreaming && !hasError && (
+        <div className="rounded-2xl bg-muted px-3 py-2 text-sm">
+          <span className="inline-block h-3.5 w-0.5 animate-pulse rounded-full bg-foreground/60 align-middle" />
         </div>
       )}
     </div>

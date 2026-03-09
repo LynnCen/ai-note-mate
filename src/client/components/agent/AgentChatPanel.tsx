@@ -4,17 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotesStore } from "@client/stores/useNotesStore";
 import { AgentMessage } from "./AgentMessage";
 import { AgentInput } from "./AgentInput";
-import type { AgentMessage as AgentMessageType, AgentStep } from "@/types/agent";
+import type { AgentMessage as AgentMessageType, AgentEvent } from "@/types/agent";
 
 export interface AgentChatPanelProps {
   noteId: string | null;
   noteTitle: string;
   noteContent: string;
-  /** Called when user clicks "应用到编辑器" on an answer step */
   onApplyToEditor?: (content: string) => void;
 }
-
-type SSEEventType = "thought" | "action" | "observation" | "answer" | "error";
 
 export function AgentChatPanel({
   noteId,
@@ -26,19 +23,40 @@ export function AgentChatPanel({
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Auto-scroll to bottom on new content
+  // Auto-scroll to bottom when messages update
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // Cleanup in-flight request on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setStreaming(false);
+  }, []);
+
   const sendMessage = useCallback(
     async (userText: string) => {
+      // Cancel any in-progress request before starting a new one
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       const userMsg: AgentMessageType = {
         id: `msg-${Date.now()}`,
         role: "user",
-        content: userText,
+        events: [],
+        fullContent: userText,
+        isDone: true,
         createdAt: new Date().toISOString(),
       };
 
@@ -47,19 +65,15 @@ export function AgentChatPanel({
       setStreaming(true);
 
       const assistantId = `msg-${Date.now() + 1}`;
-      const assistantMsg: AgentMessageType = {
+      const assistantPlaceholder: AgentMessageType = {
         id: assistantId,
         role: "assistant",
-        content: "",
-        steps: [],
+        events: [],
+        fullContent: "",
+        isDone: false,
         createdAt: new Date().toISOString(),
       };
-      setMessages((prev) => [...prev, assistantMsg]);
-
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => {
-        controller.abort();
-      }, 60000);
+      setMessages((prev) => [...prev, assistantPlaceholder]);
 
       try {
         const res = await fetch("/api/ai/chat", {
@@ -69,7 +83,7 @@ export function AgentChatPanel({
           body: JSON.stringify({
             messages: conversationHistory.map((m) => ({
               role: m.role,
-              content: m.content,
+              content: m.fullContent,
             })),
             noteId,
             noteTitle,
@@ -79,70 +93,15 @@ export function AgentChatPanel({
         });
 
         if (!res.ok || !res.body) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: "请求失败，请重试。" } : m
-            )
-          );
+          appendEvent(assistantId, { type: "error", content: "请求失败，请重试。" });
+          markDone(assistantId);
           return;
         }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let rawBuffer = "";
-        let pendingEvent: SSEEventType | null = null;
-
-        /**
-         * Apply a parsed SSE event to the assistant message.
-         * thought/action/observation → push to steps[]
-         * answer → set content
-         * error  → set content as error text
-         */
-        const applyEvent = (event: SSEEventType, dataStr: string) => {
-          let data: Record<string, string> = {};
-          try {
-            data = JSON.parse(dataStr);
-          } catch {
-            // ignore malformed data
-          }
-
-          if (event === "answer") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: data.content ?? "" }
-                  : m
-              )
-            );
-            return;
-          }
-
-          if (event === "error") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: data.content ?? "发生错误" }
-                  : m
-              )
-            );
-            return;
-          }
-
-          // thought / action / observation → append to steps
-          const step: AgentStep = {
-            type: event,
-            content: data.content ?? "",
-            ...(data.toolName ? { toolName: data.toolName } : {}),
-          };
-
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId
-                ? { ...m, steps: [...(m.steps ?? []), step] }
-                : m
-            )
-          );
-        };
+        let pendingEventType: string | null = null;
 
         while (true) {
           const { value, done } = await reader.read();
@@ -153,32 +112,109 @@ export function AgentChatPanel({
 
             for (const line of lines) {
               if (line.startsWith("event: ")) {
-                pendingEvent = line.slice(7).trim() as SSEEventType;
-              } else if (line.startsWith("data: ") && pendingEvent) {
-                applyEvent(pendingEvent, line.slice(6));
-                pendingEvent = null;
+                pendingEventType = line.slice(7).trim();
+              } else if (line.startsWith("data: ") && pendingEventType) {
+                processSSELine(assistantId, pendingEventType, line.slice(6));
+                pendingEventType = null;
               }
             }
           }
           if (done) break;
         }
       } catch (err) {
-        const message =
-          err instanceof DOMException && err.name === "AbortError"
-            ? "请求超时，请稍后重试。"
-            : "请求出错，请重试。";
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: message } : m
-          )
-        );
+        if (controller.signal.aborted) {
+          // User cancelled — mark done without an error message
+          markDone(assistantId);
+          return;
+        }
+        appendEvent(assistantId, { type: "error", content: "请求出错，请重试。" });
+        markDone(assistantId);
+        console.error("[AgentChatPanel] fetch error:", err);
       } finally {
-        window.clearTimeout(timeoutId);
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
         setStreaming(false);
       }
     },
     [messages, noteId, noteTitle, noteContent, notes]
   );
+
+  function processSSELine(
+    assistantId: string,
+    eventType: string,
+    dataStr: string
+  ) {
+    let data: Record<string, string> = {};
+    try {
+      data = JSON.parse(dataStr) as Record<string, string>;
+    } catch {
+      return;
+    }
+
+    switch (eventType) {
+      case "content_delta":
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  fullContent: m.fullContent + (data.content ?? ""),
+                  events: [
+                    ...m.events,
+                    { type: "content_delta" as const, content: data.content ?? "" },
+                  ],
+                }
+              : m
+          )
+        );
+        break;
+
+      case "tool_call_start":
+        appendEvent(assistantId, {
+          type: "tool_call_start",
+          callId: data.callId,
+          toolName: data.toolName,
+          toolInput: data.toolInput,
+        });
+        break;
+
+      case "tool_result":
+        appendEvent(assistantId, {
+          type: "tool_result",
+          callId: data.callId,
+          toolName: data.toolName,
+          content: data.content,
+        });
+        break;
+
+      case "done":
+        markDone(assistantId);
+        break;
+
+      case "error":
+        appendEvent(assistantId, {
+          type: "error",
+          content: data.message ?? "发生错误",
+        });
+        markDone(assistantId);
+        break;
+    }
+  }
+
+  function appendEvent(assistantId: string, event: AgentEvent) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId ? { ...m, events: [...m.events, event] } : m
+      )
+    );
+  }
+
+  function markDone(assistantId: string) {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === assistantId ? { ...m, isDone: true } : m))
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -190,13 +226,24 @@ export function AgentChatPanel({
             <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setMessages([])}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          清空
-        </button>
+        <div className="flex items-center gap-3">
+          {streaming && (
+            <button
+              type="button"
+              onClick={stopStreaming}
+              className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+            >
+              停止
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setMessages([])}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            清空
+          </button>
+        </div>
       </div>
 
       {/* Message list */}
@@ -205,7 +252,7 @@ export function AgentChatPanel({
           <div className="mt-10 space-y-3 text-center px-4">
             <p className="text-sm font-medium text-foreground">你好！我是文档 Agent</p>
             <p className="text-xs text-muted-foreground">
-              我会展示完整的思考过程：推理 → 调用工具 → 给出答案
+              可以调用工具搜索笔记、读取当前文档、生成文档草稿
             </p>
             <ul className="text-left space-y-2 mt-4 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
