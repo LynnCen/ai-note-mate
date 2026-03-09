@@ -1,5 +1,5 @@
 /**
- * POST /api/ai/chat — Agent 多轮对话，支持当前笔记上下文注入、跨笔记搜索、文档起草。
+ * POST /api/ai/chat — ReAct Agent 多轮对话
  *
  * 请求体：
  * {
@@ -10,11 +10,10 @@
  *   allNotes?: Note[]
  * }
  *
- * 响应：SSE 文本流（Content-Type: text/event-stream）
+ * 响应：SSE 流，每条 event 为 thought|action|observation|answer|error
  */
 import { NextRequest } from "next/server";
-import { streamChat } from "@server/llm";
-import { buildAgentMessages } from "@agents/conversation";
+import { runReActLoop } from "@agents/conversation";
 import type { AgentContext } from "@agents/types";
 import type { Note } from "@/types/note";
 
@@ -35,14 +34,25 @@ export async function POST(request: NextRequest) {
 
     const allNotes: Note[] = Array.isArray(body.allNotes) ? body.allNotes : [];
 
-    const llmMessages = buildAgentMessages({ messages, context, allNotes });
+    const generator = runReActLoop({ messages, context, allNotes });
 
-    const stream = await streamChat(llmMessages, undefined);
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of generator) {
+            controller.enqueue(new TextEncoder().encode(chunk));
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-store",
+        Connection: "keep-alive",
       },
     });
   } catch (err) {
