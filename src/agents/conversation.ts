@@ -37,9 +37,7 @@ const SYSTEM_PROMPT = DOCUMENT_AGENT_SYSTEM;
  * Each yielded string is a complete SSE block, e.g.:
  *   "event: content_delta\ndata: {\"content\":\"...\"}\n\n"
  */
-export async function* runToolCallingLoop(
-  req: ConversationRequest
-): AsyncGenerator<string> {
+export async function* runToolCallingLoop(req: ConversationRequest): AsyncGenerator<string> {
   const { messages, context, allNotes, signal } = req;
 
   const noteContext =
@@ -68,7 +66,7 @@ export async function* runToolCallingLoop(
       history,
       toolsForThisConversation,
       signal,
-      context.providerOverride
+      context.providerOverride,
     )) {
       if (signal?.aborted) return;
 
@@ -100,8 +98,7 @@ export async function* runToolCallingLoop(
     if (signal?.aborted) return;
 
     const finishEvent = collectedEvents.find((e) => e.type === "finish");
-    const finishReason =
-      finishEvent?.type === "finish" ? finishEvent.reason : "stop";
+    const finishReason = finishEvent?.type === "finish" ? finishEvent.reason : "stop";
 
     if (finishReason === "stop" || finishReason === "length") {
       yield sseEvent("done", {});
@@ -133,12 +130,7 @@ export async function* runToolCallingLoop(
     for (const tc of toolCalls) {
       if (signal?.aborted) return;
 
-      const toolResult = await executeAgentTool(
-        tc.toolName,
-        tc.argsJson,
-        noteContext,
-        allNotes
-      );
+      const toolResult = await executeAgentTool(tc.toolName, tc.argsJson, noteContext, allNotes);
 
       yield sseEvent("tool_result", {
         callId: tc.callId,

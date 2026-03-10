@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "prepare": "husky"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -43,10 +47,25 @@
     "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
     "happy-dom": "^20.8.3",
+    "husky": "^9.1.7",
     "jsdom": "^28.1.0",
+    "lint-staged": "^16.3.2",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,scss,md,mdx}": [
+      "prettier --write"
+    ]
   }
 }
