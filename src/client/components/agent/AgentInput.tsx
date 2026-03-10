@@ -2,7 +2,8 @@
 
 import { useRef, useState, useCallback } from "react";
 import { Button } from "@client/components/ui/button";
-import { Square, Send, Plus, X, FileText, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@client/components/ui/popover";
+import { Square, Send, Plus, X, FileText, Loader2, Bot, MessageCircle, Cpu } from "lucide-react";
 
 export interface ContextChip {
   type: "note" | "file";
@@ -208,45 +209,96 @@ export function AgentInput({
             onChange={handleFileUpload}
           />
 
-          {/* Agent / Ask mode toggle */}
-          <div className="flex items-center gap-0.5 rounded-full bg-muted/60 px-1 py-0.5">
-            <button
-              type="button"
-              onClick={() => setActiveMode("agent")}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                activeMode === "agent"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Agent
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMode("ask")}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                activeMode === "ask"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Ask
-            </button>
-          </div>
+          {/* Agent / Ask mode dropdown */}
+          <Popover>
+            <PopoverTrigger>
+              <div
+                className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                {activeMode === "agent" ? (
+                  <Bot className="h-3.5 w-3.5" />
+                ) : (
+                  <MessageCircle className="h-3.5 w-3.5" />
+                )}
+                <span>{activeMode === "agent" ? "Agent 模式" : "Ask 模式"}</span>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent align="start" side="top" className="w-64 p-2.5">
+              <button
+                type="button"
+                onClick={() => setActiveMode("agent")}
+                className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                  activeMode === "agent" ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                }`}
+              >
+                <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <span className="block font-semibold text-foreground">Agent 模式</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    自动调用工具，读取当前笔记、搜索知识库并生成草稿。
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode("ask")}
+                className={`mt-1 flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                  activeMode === "ask" ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                }`}
+              >
+                <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <span className="block font-semibold text-foreground">Ask 模式</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    仅进行对话问答，不调用任何工具，适合轻量提问。
+                  </span>
+                </span>
+              </button>
+            </PopoverContent>
+          </Popover>
 
           {/* Model selector (provider) */}
           {availableModels.length > 0 && onModelChange && (
-            <select
-              value={selectedModel}
-              onChange={(e) => onModelChange(e.target.value)}
-              className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {availableModels.map((m) => (
-                <option key={m} value={m}>
-                  {MODEL_LABELS[m] ?? m}
-                </option>
-              ))}
-            </select>
+            <Popover>
+              <PopoverTrigger>
+                <div
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span>
+                    {selectedModel ? MODEL_LABELS[selectedModel] ?? selectedModel : "选择模型"}
+                  </span>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent align="start" side="top" className="w-64 p-2.5">
+                {availableModels.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => onModelChange(m)}
+                    className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                      selectedModel === m ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                    }`}
+                  >
+                    <Cpu className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <span className="block font-semibold text-foreground">
+                        {MODEL_LABELS[m] ?? m}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                        {m === "openai"
+                          ? "OpenAI · gpt-4o-mini"
+                          : m === "deepseek"
+                          ? "DeepSeek · chat"
+                          : m === "gml"
+                          ? "GLM · 4-flash"
+                          : "自定义模型"}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
           )}
         </div>
 
