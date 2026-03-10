@@ -65,13 +65,21 @@ export async function* runToolCallingLoop(
     })),
   ];
 
+  // In \"ask\" 模式下不使用任何工具，只做纯问答
+  const toolsForThisConversation = context.mode === "ask" ? [] : AGENT_TOOLS;
+
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     if (signal?.aborted) return;
 
     const collectedEvents: ProviderStreamEvent[] = [];
     let assistantContent = "";
 
-    for await (const event of chatWithToolsStream(history, AGENT_TOOLS, signal, context.providerOverride)) {
+    for await (const event of chatWithToolsStream(
+      history,
+      toolsForThisConversation,
+      signal,
+      context.providerOverride
+    )) {
       if (signal?.aborted) return;
 
       collectedEvents.push(event);

@@ -180,7 +180,7 @@ export function AgentInput({
 
       {/* Bottom toolbar */}
       <div className="flex items-center justify-between gap-2">
-        {/* Left: file upload + model selector */}
+        {/* Left: file upload */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -197,20 +197,6 @@ export function AgentInput({
             className="hidden"
             onChange={handleFileUpload}
           />
-
-          {availableModels.length > 1 && onModelChange && (
-            <select
-              value={selectedModel}
-              onChange={(e) => onModelChange(e.target.value)}
-              className="h-7 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {availableModels.map((m) => (
-                <option key={m} value={m}>
-                  {MODEL_LABELS[m] ?? m}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
 
         {/* Right: Stop or Send */}
