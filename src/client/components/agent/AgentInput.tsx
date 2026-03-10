@@ -25,6 +25,9 @@ export interface AgentInputProps {
   /** Currently selected model */
   selectedModel?: string;
   onModelChange?: (model: string) => void;
+  /** Current agent mode: \"agent\" (tool-calling) or \"ask\" (no tools) */
+  mode?: "agent" | "ask";
+  onModeChange?: (mode: "agent" | "ask") => void;
 }
 
 const MODEL_LABELS: Record<string, string> = {
@@ -43,6 +46,8 @@ export function AgentInput({
   availableModels = [],
   selectedModel,
   onModelChange,
+  mode,
+  onModeChange,
 }: AgentInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -57,6 +62,11 @@ export function AgentInput({
     : { type: "note", label: "全文", content: noteContent };
 
   const [chips, setChips] = useState<ContextChip[]>([defaultChip]);
+
+  // Fallback internal mode state when parent does not control it
+  const [internalMode, setInternalMode] = useState<"agent" | "ask">(mode ?? "agent");
+  const activeMode: "agent" | "ask" = mode ?? internalMode;
+  const setActiveMode = onModeChange ?? setInternalMode;
 
   function removeChip(idx: number) {
     setChips((prev) => prev.filter((_, i) => i !== idx));
@@ -179,9 +189,9 @@ export function AgentInput({
       />
 
       {/* Bottom toolbar */}
-      <div className="flex items-center justify-between gap-2">
-        {/* Left: file upload */}
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Left: file upload + mode + model selector */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -197,6 +207,47 @@ export function AgentInput({
             className="hidden"
             onChange={handleFileUpload}
           />
+
+          {/* Agent / Ask mode toggle */}
+          <div className="flex items-center gap-0.5 rounded-full bg-muted/60 px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() => setActiveMode("agent")}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                activeMode === "agent"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Agent
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMode("ask")}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                activeMode === "ask"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ask
+            </button>
+          </div>
+
+          {/* Model selector (provider) */}
+          {availableModels.length > 0 && onModelChange && (
+            <select
+              value={selectedModel}
+              onChange={(e) => onModelChange(e.target.value)}
+              className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {availableModels.map((m) => (
+                <option key={m} value={m}>
+                  {MODEL_LABELS[m] ?? m}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Right: Stop or Send */}

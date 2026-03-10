@@ -178,7 +178,7 @@ export function AgentChatPanel({
         setStreaming(false);
       }
     },
-    [messages, noteId, noteTitle, noteContent, notes, selectedModel]
+    [messages, noteId, noteTitle, noteContent, notes, selectedModel, mode]
   );
 
   function processSSELine(
@@ -261,57 +261,10 @@ export function AgentChatPanel({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">Agent 对话</span>
-            {streaming && (
-              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
-            )}
-          </div>
-          {/* Mode toggle: Agent / Ask */}
-          <div className="flex items-center gap-0.5 rounded-full bg-muted/60 px-1 py-0.5">
-            <button
-              type="button"
-              onClick={() => setMode("agent")}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                mode === "agent"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Agent
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("ask")}
-              className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                mode === "ask"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Ask
-            </button>
-          </div>
-          {/* Model selector (provider) */}
-          {availableModels.length > 0 && (
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="h-7 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {availableModels.map((m) => (
-                <option key={m} value={m}>
-                  {m === "openai"
-                    ? "OpenAI · gpt-4o-mini"
-                    : m === "deepseek"
-                    ? "DeepSeek · chat"
-                    : m === "gml"
-                    ? "GLM · 4-flash"
-                    : m}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Agent 对话</span>
+          {streaming && (
+            <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-primary" />
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -381,6 +334,8 @@ export function AgentChatPanel({
           availableModels={availableModels}
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
+          mode={mode}
+          onModeChange={setMode}
         />
       </div>
     </div>
