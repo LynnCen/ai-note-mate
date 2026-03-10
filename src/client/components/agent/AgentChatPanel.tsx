@@ -16,6 +16,9 @@ export interface AgentChatPanelProps {
   onToggleCollapse?: () => void;
   /** If provided, auto-send this message on first mount */
   initialPrompt?: string;
+  initialMode?: "agent" | "ask";
+  initialProvider?: string;
+  initialAttachments?: Array<{ filename: string; content: string }>;
 }
 
 export function AgentChatPanel({
@@ -26,16 +29,19 @@ export function AgentChatPanel({
   selectedText,
   onToggleCollapse,
   initialPrompt,
+  initialMode,
+  initialProvider,
+  initialAttachments,
 }: AgentChatPanelProps) {
   const { notes } = useNotesStore();
   const [messages, setMessages] = useState<AgentMessageType[]>([]);
   const [streaming, setStreaming] = useState(false);
-  const [mode, setMode] = useState<"agent" | "ask">("agent");
+  const [mode, setMode] = useState<"agent" | "ask">(initialMode ?? "agent");
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string | undefined>();
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(initialProvider);
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -59,7 +65,13 @@ export function AgentChatPanel({
       .then((r) => r.json())
       .then((data: { providers: string[] }) => {
         setAvailableModels(data.providers);
-        if (data.providers.length > 0) setSelectedModel(data.providers[0]);
+        if (data.providers.length > 0) {
+          if (initialProvider && data.providers.includes(initialProvider)) {
+            setSelectedModel(initialProvider);
+          } else {
+            setSelectedModel(data.providers[0]);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -67,7 +79,13 @@ export function AgentChatPanel({
           initialPromptSentRef.current = true;
           // Small delay so the panel is fully rendered
           setTimeout(() => {
-            sendMessage(initialPrompt, []);
+            const initialChips: ContextChip[] =
+              initialAttachments?.map((a) => ({
+                type: "file",
+                label: a.filename,
+                content: a.content,
+              })) ?? [];
+            sendMessage(initialPrompt, initialChips);
           }, 300);
         }
       });

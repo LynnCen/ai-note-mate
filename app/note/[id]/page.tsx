@@ -79,6 +79,48 @@ export default function NoteDetailPage() {
     return val;
   });
 
+  // Initial Agent mode (Agent / Ask) from home page
+  const [initialAgentMode] = useState<"agent" | "ask">(() => {
+    if (typeof window === "undefined") return "agent";
+    const key = `agent-mode:${id}`;
+    const val = sessionStorage.getItem(key) as "agent" | "ask" | null;
+    if (val === "agent" || val === "ask") {
+      sessionStorage.removeItem(key);
+      return val;
+    }
+    return "agent";
+  });
+
+  // Initial provider override from home page
+  const [initialAgentProvider] = useState<string | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    const key = `agent-provider:${id}`;
+    const val = sessionStorage.getItem(key) ?? "";
+    if (val) {
+      sessionStorage.removeItem(key);
+      return val;
+    }
+    return undefined;
+  });
+
+  // Initial file attachments from home page (if any)
+  const [initialAgentAttachments] = useState<
+    Array<{ filename: string; content: string }>
+  >(() => {
+    if (typeof window === "undefined") return [];
+    const key = `agent-attachments:${id}`;
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return [];
+    sessionStorage.removeItem(key);
+    try {
+      const arr = JSON.parse(raw) as Array<{ filename: string; content: string }>;
+      if (!Array.isArray(arr)) return [];
+      return arr.filter((a) => a && typeof a.filename === "string" && typeof a.content === "string");
+    } catch {
+      return [];
+    }
+  });
+
   const MIN_HEIGHT = 200;
   const { height: editorHeight, onHandleMouseDown: onHeightDragStart } = useResizableHeight();
 
@@ -549,18 +591,21 @@ export default function NoteDetailPage() {
           className="hidden border-l border-border lg:flex lg:flex-col shrink-0"
           style={{ width: panelWidth }}
         >
-          <AgentChatPanel
-            noteId={id.startsWith("local-") ? null : id}
-            noteTitle={title}
-            noteContent={content}
-            selectedText={selectedTextForAgent}
-            initialPrompt={initialAgentPrompt || undefined}
-            onApplyToEditor={(agentContent) => {
-              setContent((prev) => prev + "\n\n" + agentContent);
-              setIsDirty(true);
-            }}
-            onToggleCollapse={() => setAgentCollapsed(true)}
-          />
+        <AgentChatPanel
+          noteId={id.startsWith("local-") ? null : id}
+          noteTitle={title}
+          noteContent={content}
+          selectedText={selectedTextForAgent}
+          initialPrompt={initialAgentPrompt || undefined}
+          initialMode={initialAgentMode}
+          initialProvider={initialAgentProvider}
+          initialAttachments={initialAgentAttachments}
+          onApplyToEditor={(agentContent) => {
+            setContent((prev) => prev + "\n\n" + agentContent);
+            setIsDirty(true);
+          }}
+          onToggleCollapse={() => setAgentCollapsed(true)}
+        />
         </div>
       )}
 

@@ -4,7 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useNotesStore } from "@client/stores/useNotesStore";
-import { ArrowRight, FileText, Plus, Sparkles, Send } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@client/components/ui/popover";
+import {
+  ArrowRight,
+  Bot,
+  Cpu,
+  FileText,
+  Loader2,
+  MessageCircle,
+  Plus,
+  Sparkles,
+  Send,
+  X,
+} from "lucide-react";
+import type { ContextChip } from "@client/components/agent/AgentInput";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -50,31 +63,140 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [creating, setCreating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [chips, setChips] = useState<ContextChip[]>([]);
+  const [mode, setMode] = useState<"agent" | "ask">("agent");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string | undefined>();
+  const [modePopoverOpen, setModePopoverOpen] = useState(false);
+  const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
 
   useEffect(() => {
     fetchNotes();
   }, [fetchNotes]);
 
+  // Fetch available providers for model selector
+  useEffect(() => {
+    fetch("/api/ai/providers")
+      .then((r) => r.json())
+      .then((data: { providers: string[] }) => {
+        setAvailableModels(data.providers);
+        if (data.providers.length > 0) setSelectedModel(data.providers[0]);
+      })
+      .catch(() => {});
+  }, []);
+
   const persistedNotes = notes
     .filter((n) => !n.id.startsWith("local-"))
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  /** Create a draft and go to detail — optionally with an Agent prompt */
+  function removeChip(idx: number) {
+    setChips((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const filename = file.name;
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const chipKey = `${filename}-${Date.now()}`;
+
+    setChips((prev) => [...prev, { type: "file", label: filename, loading: true }]);
+
+    if (ext === "txt" || ext === "md") {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = typeof reader.result === "string" ? reader.result : "";
+        setChips((prev) =>
+          prev.map((c) =>
+            c.type === "file" && c.label === filename && c.loading
+              ? { ...c, content: text, loading: false }
+              : c
+          )
+        );
+      };
+      reader.readAsText(file);
+    } else if (ext === "docx") {
+      const formData = new FormData();
+      formData.append("file", file);
+      fetch("/api/file/parse", { method: "POST", body: formData })
+        .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+        .then(({ text: fileText }: { text: string; filename: string }) => {
+          setChips((prev) =>
+            prev.map((c) =>
+              c.type === "file" && c.label === filename && c.loading
+                ? { ...c, content: fileText, loading: false }
+                : c
+            )
+          );
+        })
+        .catch(() => {
+          setChips((prev) =>
+            prev.map((c) =>
+              c.type === "file" && c.label === filename && c.loading
+                ? { ...c, content: "[无法解析文件内容]", loading: false }
+                : c
+            )
+          );
+        });
+    } else {
+      // Unsupported type — keep chip, mark as unreadable
+      setChips((prev) =>
+        prev.map((c) =>
+          c.type === "file" && c.label === filename && c.loading
+            ? { ...c, content: "[暂不支持的文件类型]", loading: false }
+            : c
+        )
+      );
+    }
+
+    void chipKey;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  /** Create a draft and go to detail — optionally with an Agent prompt + config */
   const createAndNavigate = useCallback(
-    (agentPrompt?: string) => {
+    (
+      agentPrompt?: string,
+      options?: {
+        mode?: "agent" | "ask";
+        provider?: string;
+        attachments?: Array<{ filename: string; content: string }>;
+      }
+    ) => {
       setCreating(true);
       const draft = createLocalDraft();
+      const draftId = draft.id;
+
       if (agentPrompt?.trim()) {
-        sessionStorage.setItem(`agent-prompt:${draft.id}`, agentPrompt.trim());
+        sessionStorage.setItem(`agent-prompt:${draftId}`, agentPrompt.trim());
       }
-      router.push(`/note/${draft.id}`);
+      if (options?.mode) {
+        sessionStorage.setItem(`agent-mode:${draftId}`, options.mode);
+      }
+      if (options?.provider) {
+        sessionStorage.setItem(`agent-provider:${draftId}`, options.provider);
+      }
+      if (options?.attachments && options.attachments.length > 0) {
+        sessionStorage.setItem(`agent-attachments:${draftId}`, JSON.stringify(options.attachments));
+      }
+
+      router.push(`/note/${draftId}`);
     },
     [createLocalDraft, router]
   );
 
   function handleSendToAgent() {
     if (!prompt.trim()) return;
-    createAndNavigate(prompt.trim());
+    const attachments =
+      chips
+        .filter((c) => c.type === "file" && !c.loading && c.content)
+        .map((c) => ({ filename: c.label, content: c.content ?? "" })) ?? [];
+    createAndNavigate(prompt.trim(), {
+      mode,
+      provider: selectedModel,
+      attachments,
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -151,6 +273,38 @@ export default function Home() {
 
         {/* Input card */}
         <div className="relative rounded-2xl border border-border/60 bg-card shadow-sm transition-shadow hover:shadow-md focus-within:border-primary/40 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]">
+          {/* Context chips (attachments) */}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-4 pt-4">
+              {chips.map((chip, i) => (
+                <span
+                  key={i}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                    chip.loading
+                      ? "border-border/50 bg-muted/30 text-muted-foreground/60"
+                      : "border-border bg-muted/60 text-muted-foreground"
+                  }`}
+                >
+                  {chip.loading ? (
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                  ) : (
+                    <FileText className="h-3 w-3 shrink-0" />
+                  )}
+                  <span className="max-w-[160px] truncate">{chip.label}</span>
+                  {!chip.loading && (
+                    <button
+                      type="button"
+                      onClick={() => removeChip(i)}
+                      className="ml-0.5 rounded-full hover:text-foreground transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={prompt}
@@ -158,17 +312,118 @@ export default function Home() {
             onKeyDown={handleKeyDown}
             placeholder="告诉 Agent 你想创作什么……&#10;（Enter 发送，Shift+Enter 换行）"
             rows={4}
-            className="w-full resize-none rounded-2xl bg-transparent px-5 pt-5 pb-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none"
+            className={`w-full resize-none rounded-2xl bg-transparent px-5 pb-3 text-sm leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none ${
+              chips.length > 0 ? "pt-2" : "pt-5"
+            }`}
           />
 
-          {/* Bottom toolbar */}
-          <div className="flex items-center justify-between gap-3 border-t border-border/40 px-4 py-3">
-            <span className="text-xs text-muted-foreground/60">
-              {prompt.length > 0 ? `${prompt.length} 字` : "输入内容，Agent 会自动起草笔记"}
-            </span>
+          {/* Bottom toolbar — align with inner Agent UI: 左侧 文件/模式/模型，右侧 发送/新建 */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 px-4 py-3">
+            {/* Left: file upload + mode + model */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="附加文件（DOCX / TXT / MD）"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".docx,.txt,.md"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
 
+              {/* Agent / Ask 模式下拉 */}
+              <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
+                <PopoverTrigger>
+                  <div className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                    {mode === "agent" ? (
+                      <Bot className="h-3.5 w-3.5" />
+                    ) : (
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    )}
+                    <span>{mode === "agent" ? "Agent 模式" : "Ask 模式"}</span>
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent align="start" side="top" className="w-64 p-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("agent");
+                      setModePopoverOpen(false);
+                    }}
+                    className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                      mode === "agent" ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                    }`}
+                  >
+                    <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <span className="block font-semibold text-foreground">Agent 模式</span>
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                        自动调用工具，读取笔记、搜索知识库并生成草稿。
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("ask");
+                      setModePopoverOpen(false);
+                    }}
+                    className={`mt-1 flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                      mode === "ask" ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                    }`}
+                  >
+                    <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <span className="block font-semibold text-foreground">Ask 模式</span>
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                        只进行对话问答，不调用工具，适合轻量提问。
+                      </span>
+                    </span>
+                  </button>
+                </PopoverContent>
+              </Popover>
+
+              {/* 模型选择下拉（provider） */}
+              {availableModels.length > 0 && (
+                <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                  <PopoverTrigger>
+                    <div className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                      <Cpu className="h-3.5 w-3.5" />
+                      <span>{selectedModel ?? "选择模型"}</span>
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" className="w-64 p-2.5">
+                    {availableModels.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(m);
+                          setModelPopoverOpen(false);
+                        }}
+                        className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                          selectedModel === m ? "bg-muted text-foreground" : "hover:bg-muted/70"
+                        }`}
+                      >
+                        <Cpu className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          <span className="block font-semibold text-foreground">{m}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+
+            {/* Right: create / send */}
             <div className="flex items-center gap-2">
-              {/* Direct create — no agent */}
               <button
                 type="button"
                 onClick={() => createAndNavigate()}
@@ -178,8 +433,6 @@ export default function Home() {
                 <Plus className="h-3.5 w-3.5" />
                 直接新建
               </button>
-
-              {/* Send to Agent */}
               <button
                 type="button"
                 onClick={handleSendToAgent}
