@@ -472,7 +472,7 @@ export default function NoteDetailPage() {
                 onClick={() => setEditorMode((m) => m === "preview" ? "edit" : "preview")}
                 className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
               >
-                {editorMode === "preview" ? "✏️ 编辑" : "👁 预览"}
+                {editorMode === "preview" ? "编辑" : "预览"}
               </button>
               <button
                 type="button"

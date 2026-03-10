@@ -11,7 +11,8 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "read_note",
-      description: "读取当前打开的笔记的完整标题和正文内容。无需参数，直接调用。",
+      description:
+        "读取当前打开的笔记的完整标题和正文内容。写文档或回答与当前笔记强相关的问题时，优先调用本工具。",
       parameters: {
         type: "object",
         properties: {},
@@ -23,7 +24,8 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "search_notes",
-      description: "在用户所有笔记中进行关键词搜索，返回最相关的前 3 篇。",
+      description:
+        "在用户所有笔记中进行关键词搜索，返回最相关的前 3 篇，用于补充当前笔记之外的上下文信息。",
       parameters: {
         type: "object",
         properties: {
@@ -40,7 +42,8 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "draft_document",
-      description: "根据指定模板生成文档草稿，支持会议纪要、技术文档、周报。",
+      description:
+        "根据指定模板生成 Markdown 文档骨架（会议纪要 / 技术文档 / 周报）。仅在用户明确要求“给我一个模板/骨架，我自己填”时调用，不要在普通写文档场景下默认使用。",
       parameters: {
         type: "object",
         properties: {

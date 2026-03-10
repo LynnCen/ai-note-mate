@@ -18,6 +18,7 @@ import type { ChatMessage, ProviderStreamEvent, ToolCall } from "@server/llm/typ
 import { executeAgentTool, AGENT_TOOLS } from "./tool-registry";
 import type { AgentContext } from "./types";
 import type { Note } from "@/types/note";
+import { DOCUMENT_AGENT_SYSTEM } from "./document-agent/prompts";
 
 export interface ConversationRequest {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
@@ -28,18 +29,7 @@ export interface ConversationRequest {
 
 const MAX_ITERATIONS = 5;
 
-const SYSTEM_PROMPT = `你是一个文档助手 Agent，帮助用户管理和编辑笔记。
-
-你有以下工具可以使用：
-- read_note：读取当前打开的笔记的完整标题和正文内容
-- search_notes：在用户所有笔记中搜索
-- draft_document：根据模板生成文档草稿（meeting/tech/weekly）
-
-规则：
-1. 遇到需要查询信息的问题，先调用相关工具获取信息，再基于信息回答。
-2. 回答要简洁、具体、有帮助。
-3. 如果用户提问与当前笔记内容相关，优先使用 read_note。
-4. 用中文回答。`;
+const SYSTEM_PROMPT = DOCUMENT_AGENT_SYSTEM;
 
 /**
  * Async generator that runs the Tool Calling loop and yields SSE strings.
