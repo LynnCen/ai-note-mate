@@ -69,6 +69,10 @@ export function AgentInput({
   const activeMode: "agent" | "ask" = mode ?? internalMode;
   const setActiveMode = onModeChange ?? setInternalMode;
 
+  // Popover open state so that clicking an option will auto-close the panel
+  const [modePopoverOpen, setModePopoverOpen] = useState(false);
+  const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+
   function removeChip(idx: number) {
     setChips((prev) => prev.filter((_, i) => i !== idx));
   }
@@ -210,7 +214,7 @@ export function AgentInput({
           />
 
           {/* Agent / Ask mode dropdown */}
-          <Popover>
+          <Popover open={modePopoverOpen} onOpenChange={setModePopoverOpen}>
             <PopoverTrigger>
               <div
                 className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -226,7 +230,10 @@ export function AgentInput({
             <PopoverContent align="start" side="top" className="w-64 p-2.5">
               <button
                 type="button"
-                onClick={() => setActiveMode("agent")}
+                onClick={() => {
+                  setActiveMode("agent");
+                  setModePopoverOpen(false);
+                }}
                 className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                   activeMode === "agent" ? "bg-muted text-foreground" : "hover:bg-muted/70"
                 }`}
@@ -241,7 +248,10 @@ export function AgentInput({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveMode("ask")}
+                onClick={() => {
+                  setActiveMode("ask");
+                  setModePopoverOpen(false);
+                }}
                 className={`mt-1 flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                   activeMode === "ask" ? "bg-muted text-foreground" : "hover:bg-muted/70"
                 }`}
@@ -259,7 +269,7 @@ export function AgentInput({
 
           {/* Model selector (provider) */}
           {availableModels.length > 0 && onModelChange && (
-            <Popover>
+            <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
               <PopoverTrigger>
                 <div
                   className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -275,7 +285,10 @@ export function AgentInput({
                   <button
                     key={m}
                     type="button"
-                    onClick={() => onModelChange(m)}
+                    onClick={() => {
+                      onModelChange(m);
+                      setModelPopoverOpen(false);
+                    }}
                     className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                       selectedModel === m ? "bg-muted text-foreground" : "hover:bg-muted/70"
                     }`}
